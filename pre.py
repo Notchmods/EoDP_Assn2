@@ -17,10 +17,12 @@ Question: What are the differences in traffic accident outcomes among various ve
         - road geometry
         - light level
         - road surface
+        - road type (eg. freeway)
         - Atmospheric Condition
 
 - For accident outcome:
     We mainly focus on the following factor:
+        - Accident type
         - vehicle damage level
         - number of people (driver or passenger) injured from the accident
             Notes: There are counts for diffrent level of injury. 
@@ -47,28 +49,26 @@ Some Questions I'm not sure:
     option (hopefully is helpful to you)
 
 - How should we measure the outcome of an accident?
-    Just my opinion, we could analyze how structurally vulnerable or robust the vehicle is (i.e., how 
+    Just my opinion, we could analyse how structurally vulnerable or robust the vehicle is (i.e., how 
     easily it gets damaged or the structural integrity). Another use of damage level could be a 
     factor to reflect the servity of the accidents. I think the correlation between damage level and 
     injury under different condition could tell us something.
 
-- Frequency:
-    I didn't do anything with the frequency counts (sorry for that). It should be very easy. I think 
-    it's better to have that as well. It could answer some questions like "Which type of vehicle is 
-    more dangerous when there is no light?"
-
 A few possible problems we could solve:
-- How does road geometry influence accident severity across different vehicle types?
-- Do different light conditions (e.g., day, night, dusk) impact injury severity differently across vehicle types?
-- Which vehicle types are more prone to severe outcomes on poor road surfaces (e.g., gravel, unpaved)?
-- Under adverse weather (e.g., heavy rain, fog), which vehicle types experience the highest increase in fatality rate?
-- Are rear-seat passengers more vulnerable in certain vehicle types (e.g., Light Commercial vs. Passenger Cars)?
-- Are some vehicle types consistently more dangerous for front-seat passengers?
-- Does higher vehicle damage always correlate with higher injury levels? Does this vary by vehicle type?
-- Are there vehicles with high structural damage but surprisingly low passenger injuries—or the opposite?
-- Are there specific combinations of conditions (e.g., night + wet road + motorcycle) that result in extreme injury outcomes?
-- Are some vehicle types generally safer regardless of road and environmental conditions?
-- Does the number of occupants in a vehicle influence the injury outcome? For example, are rear-seat injuries worse when more people are seated?
+Damage Level:
+- How do road surface, weather, and light level influence vehicle damage level across different vehicle types?
+
+Injury Rate:
+- Which type of vehicle is the safest (lowest injury level) overall? Under a specific weather, road type, light level?
+  (comparing the correlation between Injury (level or number) and damage level)
+- What is the most deadly combination of road surface, light, weather, and road type for each vehicle type?
+
+Accident Type:
+- Under a specific type of road surface, weather, light level, road level, what type of accident is the most frequently 
+  happened on each type of vehicle?
+
+Frequency:
+- Under what combinations of vehicle type + road/environmental conditions do accidents occur most frequently?
 """
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
@@ -116,6 +116,17 @@ Unwanted_type = ["Unknown", "Not Applicable", "Not Known",
 
 rear_seat_type = ['Car', 'Station Wagon', 'Taxi', 'Utility', 'Panel Van'
                 'Utility', 'Panel Van', 'Light Commercial Vehicle']
+
+accident_type_dict = {0: "Pedestrian on foot in toy/pram",
+    1: "Vehicles from adjacent directions (intersections only)",
+    2: "Vehicles from opposing directions",
+    3: "Vehicles from same direction",
+    4: "Manoeuvring",
+    5: "Overtaking",
+    6: "On path",
+    7: "Off path on straight",
+    8: "Off path on curve",
+    9: "Passenger and miscellaneous"}
 
 # For testing:
 # v_path = "./vehicle.csv"
@@ -265,7 +276,7 @@ def vehicle_df(vehicle_path):
     # print(vehicle.groupby(["VEHICLE_CATEGORY"]).size())
     return vehicle
 
-def outcome_df(vehicle_path, person_path):
+def outcome_df(vehicle_path, person_path, accident_path):
     """
     This function merges and processes accident outcome data to produce a DataFrame 
     that combines vehicle damage and injury severity information. It removes incomplete 
@@ -320,17 +331,38 @@ def outcome_df(vehicle_path, person_path):
         - REAR_AVG_INJURY: Average injury level of the rear passenger
 
         - FRONT_AVG_INJURY: Average injury level of the front passenger / Driver
+
+        - ACCIDENT_TYPE:
+            "Pedestrian on foot in toy/pram",
+            "Vehicles from adjacent directions (intersections only)",
+            "Vehicles from opposing directions",
+            "Vehicles from same direction",
+            "Manoeuvring",
+            "Overtaking",
+            "On path",
+            "Off path on straight",
+            "Off path on curve",
+            "Passenger and miscellaneous"
     """
     
 
     vehicle = vehicle_df(vehicle_path)
     person = pd.read_csv(person_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "SEATING_POSITION", "INJ_LEVEL"])
+    
+    # Column: Accident Type
+    accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "DCA_CODE"])
+    accident["DCA_CODE"] = ((accident["DCA_CODE"] // 10) % 10).map(accident_type_dict)
+    accident = accident.rename(columns={"DCA_CODE": "ACCIDENT_TYPE"})
+
     # delete all rows with VEHICLE_ID is null, they might be pedestrians (Not interested)
     person = person[~person["VEHICLE_ID"].isna()]
     person["INJ_LEVEL"] = person["INJ_LEVEL"].map(reordered_INJ_dict)
+
+    # count injuried people
     injury_count= person.groupby(["ACCIDENT_NO", "VEHICLE_ID"])["INJ_LEVEL"].value_counts().unstack(fill_value=0).reset_index()
     injury_count = injury_count.rename(columns=inj_name_dict)
 
+    # Find injury level
     avg_injury_level = person.groupby(["ACCIDENT_NO", "VEHICLE_ID"])["INJ_LEVEL"].mean().reset_index(name="AVERAGE_INJ_LEVEL")
     person["FRONT"] = person["SEATING_POSITION"].isin(front)
     person.drop(columns=["SEATING_POSITION"])
@@ -338,21 +370,23 @@ def outcome_df(vehicle_path, person_path):
     vehicle_by_seat = vehicle[vehicle["VEHICLE_CATEGORY"].isin(rear_seat_type)]
     avg_injury_by_seat = vehicle_by_seat.groupby(["ACCIDENT_NO", "VEHICLE_ID", "FRONT"])["INJ_LEVEL"].mean().unstack().reset_index()
     avg_injury_by_seat = avg_injury_by_seat.rename(columns={True: "FRONT_AVG_INJURY", False: "REAR_AVG_INJURY"})
+
     vehicle = pd.merge(vehicle, injury_count, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = pd.merge(vehicle, avg_injury_level, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = pd.merge(vehicle, avg_injury_by_seat, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = vehicle.drop(["SEATING_POSITION", "INJ_LEVEL", "FRONT"], axis=1)
     vehicle = vehicle.drop_duplicates()
+    vehicle = pd.merge(vehicle, accident, on=["ACCIDENT_NO"])
     # Viewing table:
     # vehicle.to_csv("my_vehicle.csv", index=False)
     return vehicle
 
 def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     environment = environment_df(vehicle_path, accident_path, atomosphere_path)
-    outcome = outcome_df(vehicle_path, accident_path, person_path)
+    outcome = outcome_df(vehicle_path, person_path, accident_path)
     # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
-    # everything.to_csv("table.csv", index=False)
+    everything.to_csv("table.csv", index=False)
     return everything
 
 # For testing:
