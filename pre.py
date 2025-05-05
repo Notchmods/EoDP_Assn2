@@ -1,3 +1,75 @@
+"""
+Read it before you start your part:
+
+Question: What are the differences in traffic accident outcomes among various vehicle types 
+          under different road and environmental conditions?
+
+- Please download data from https://discover.data.vic.gov.au/dataset/victoria-road-crash-data
+  In this assignment, we are currently using these data file: 
+    Accident, 
+    Vehicle, 
+    Atmospheric Condition, 
+    Person
+  If you reckon any other files could be included, pls discuss with all group members.
+
+- For accident environments:
+    We mainly focus on the following factor:
+        - road geometry
+        - light level
+        - road surface
+        - Atmospheric Condition
+
+- For accident outcome:
+    We mainly focus on the following factor:
+        - vehicle damage level
+        - number of people (driver or passenger) injured from the accident
+            Notes: There are counts for diffrent level of injury. 
+        - average injury level across driver and all passengers
+        - average injury level for the front seat and rear seat
+            Notes: if you find these two columns containing null value, it may because:
+                1. This type of vehicle does not have rear seat. 
+                    Only   ['Car', 
+                            'Station Wagon', 
+                            'Taxi', 'Utility', 
+                            'Panel Van',
+                            'Utility', 
+                            'Panel Van', 
+                            'Light Commercial Vehicle']
+                    has front seats and rear seats
+                2. If it is null in the rear column, it could because no rear-seat passenger 
+                   (DIFFERENT FROM NOT INJURY. if no one injury, it should be 0)
+
+Some Questions I'm not sure:
+- number of people (driver or passenger) injured VS. average injury level
+    There two are basically same things. I think you only need to use one of them to reflect the 
+    safety of the car under a certain condition. Considering which one to use, I think just choose
+    the one better/easier for your task. The reason I kept both is just providing your another 
+    option (hopefully is helpful to you)
+
+- How should we measure the outcome of an accident?
+    Just my opinion, we could analyze how structurally vulnerable or robust the vehicle is (i.e., how 
+    easily it gets damaged or the structural integrity). Another use of damage level could be a 
+    factor to reflect the servity of the accidents. I think the correlation between damage level and 
+    injury under different condition could tell us something.
+
+- Frequency:
+    I didn't do anything with the frequency counts (sorry for that). It should be very easy. I think 
+    it's better to have that as well. It could answer some questions like "Which type of vehicle is 
+    more dangerous when there is no light?"
+
+A few possible problems we could solve:
+- How does road geometry influence accident severity across different vehicle types?
+- Do different light conditions (e.g., day, night, dusk) impact injury severity differently across vehicle types?
+- Which vehicle types are more prone to severe outcomes on poor road surfaces (e.g., gravel, unpaved)?
+- Under adverse weather (e.g., heavy rain, fog), which vehicle types experience the highest increase in fatality rate?
+- Are rear-seat passengers more vulnerable in certain vehicle types (e.g., Light Commercial vs. Passenger Cars)?
+- Are some vehicle types consistently more dangerous for front-seat passengers?
+- Does higher vehicle damage always correlate with higher injury levels? Does this vary by vehicle type?
+- Are there vehicles with high structural damage but surprisingly low passenger injuries—or the opposite?
+- Are there specific combinations of conditions (e.g., night + wet road + motorcycle) that result in extreme injury outcomes?
+- Are some vehicle types generally safer regardless of road and environmental conditions?
+- Does the number of occupants in a vehicle influence the injury outcome? For example, are rear-seat injuries worse when more people are seated?
+"""
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 
@@ -193,7 +265,7 @@ def vehicle_df(vehicle_path):
     # print(vehicle.groupby(["VEHICLE_CATEGORY"]).size())
     return vehicle
 
-def outcome_df(vehicle_path, accident_path, person_path):
+def outcome_df(vehicle_path, person_path):
     """
     This function merges and processes accident outcome data to produce a DataFrame 
     that combines vehicle damage and injury severity information. It removes incomplete 
@@ -275,8 +347,16 @@ def outcome_df(vehicle_path, accident_path, person_path):
     # vehicle.to_csv("my_vehicle.csv", index=False)
     return vehicle
 
+def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
+    environment = environment_df(vehicle_path, accident_path, atomosphere_path)
+    outcome = outcome_df(vehicle_path, accident_path, person_path)
+    # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
+    everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
+    # everything.to_csv("table.csv", index=False)
+    return everything
 
-
+# For testing:
 # outcome_df(v_path, a_path, p_path)
 # vehicle_df(v_path)
 # environment_df(v_path, a_path, atmo_path)
+# everything_df(v_path, a_path, atmo_path, p_path)
