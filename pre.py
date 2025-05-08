@@ -410,9 +410,6 @@ def outcome_df(vehicle_path, person_path, accident_path):
     vehicle_by_seat = vehicle[vehicle["VEHICLE_CATEGORY"].isin(rear_seat_type)]
     avg_injury_by_seat = vehicle_by_seat.groupby(["ACCIDENT_NO", "VEHICLE_ID", "FRONT"])["INJ_LEVEL"].mean().unstack().reset_index()
     avg_injury_by_seat = avg_injury_by_seat.rename(columns={True: "FRONT_AVG_INJURY", False: "REAR_AVG_INJURY"})
-    # Round injury level
-    avg_injury_by_seat["FRONT_AVG_INJURY"] = (avg_injury_by_seat["FRONT_AVG_INJURY"].apply(lambda x: int(round(x)) if pd.notnull(x) else x))
-    avg_injury_by_seat["REAR_AVG_INJURY"] = (avg_injury_by_seat["REAR_AVG_INJURY"].apply(lambda x: int(round(x)) if pd.notnull(x) else x))
 
     # Merge together
     vehicle = pd.merge(vehicle, injury_count, on=["ACCIDENT_NO", "VEHICLE_ID"])
