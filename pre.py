@@ -17,12 +17,10 @@ Question: What are the differences in traffic accident outcomes among various ve
         - road geometry
         - light level
         - road surface
-        - road type (eg. freeway)
         - Atmospheric Condition
 
 - For accident outcome:
     We mainly focus on the following factor:
-        - Accident type
         - vehicle damage level
         - number of people (driver or passenger) injured from the accident
             Notes: There are counts for diffrent level of injury. 
@@ -49,37 +47,31 @@ Some Questions I'm not sure:
     option (hopefully is helpful to you)
 
 - How should we measure the outcome of an accident?
-    Just my opinion, we could analyse how structurally vulnerable or robust the vehicle is (i.e., how 
+    Just my opinion, we could analyze how structurally vulnerable or robust the vehicle is (i.e., how 
     easily it gets damaged or the structural integrity). Another use of damage level could be a 
     factor to reflect the servity of the accidents. I think the correlation between damage level and 
     injury under different condition could tell us something.
 
+- Frequency:
+    I didn't do anything with the frequency counts (sorry for that). It should be very easy. I think 
+    it's better to have that as well. It could answer some questions like "Which type of vehicle is 
+    more dangerous when there is no light?"
+
 A few possible problems we could solve:
-Damage Level:
-- How do road surface, weather, and light level influence vehicle damage level across different vehicle types?
-
-Injury Rate:
-- Which type of vehicle is the safest (lowest injury level) overall? Under a specific weather, road type, light level?
-  (comparing the correlation between Injury (level or number) and damage level)
-- What is the most deadly combination of road surface, light, weather, and road type for each vehicle type?
-
-Accident Type:
-- Under a specific type of road surface, weather, light level, road level, what type of accident is the most frequently 
-  happened on each type of vehicle?
-
-Frequency:
-- Under what combinations of vehicle type + road/environmental conditions do accidents occur most frequently?
+- How does road geometry influence accident severity across different vehicle types?
+- Do different light conditions (e.g., day, night, dusk) impact injury severity differently across vehicle types?
+- Which vehicle types are more prone to severe outcomes on poor road surfaces (e.g., gravel, unpaved)?
+- Under adverse weather (e.g., heavy rain, fog), which vehicle types experience the highest increase in fatality rate?
+- Are rear-seat passengers more vulnerable in certain vehicle types (e.g., Light Commercial vs. Passenger Cars)?
+- Are some vehicle types consistently more dangerous for front-seat passengers?
+- Does higher vehicle damage always correlate with higher injury levels? Does this vary by vehicle type?
+- Are there vehicles with high structural damage but surprisingly low passenger injuries—or the opposite?
+- Are there specific combinations of conditions (e.g., night + wet road + motorcycle) that result in extreme injury outcomes?
+- Are some vehicle types generally safer regardless of road and environmental conditions?
+- Does the number of occupants in a vehicle influence the injury outcome? For example, are rear-seat injuries worse when more people are seated?
 """
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
-
-reordered_light_dict = {
-    1: 3,
-    2: 2,
-    3: 1,
-    4: 0,
-    5: 0
-}
 
 reordered_INJ_dict = {
     1: 3,
@@ -95,7 +87,6 @@ inj_name_dict = {
     0: "NO_INJ_COUNT",
 }
 
-Unknown_light = [6,9]
 
 level_of_damage_dict = {
     1: "Minor",
@@ -114,7 +105,7 @@ Unwanted_type = ["Unknown", "Not Applicable", "Not Known",
                   "Plant machinery and Agricultural equipment",
                   "Parked trailers", "Other Vehicle"]
 
-rear_seat_type = ['Car', 'Station Wagon', 'Taxi', 'Utility', 'Panel Van'
+rear_seat_type = ['Car', 'Station Wagon', 'Taxi', 'Utility', 'Panel Van',
                 'Utility', 'Panel Van', 'Light Commercial Vehicle']
 
 accident_type_dict = {0: "Pedestrian on foot in toy/pram",
@@ -127,6 +118,24 @@ accident_type_dict = {0: "Pedestrian on foot in toy/pram",
     7: "Off path on straight",
     8: "Off path on curve",
     9: "Passenger and miscellaneous"}
+
+light_code = {
+    "Day": 1,
+    "Dusk/dawn": 2,
+    "Dark street lights on": 3,
+    "Dark street lights off": 4,
+    "Dark no street lights": 5,
+    "Dark street lights unknown": 6,
+    "Unknown": 9
+}
+
+reordered_light_dict = {
+    light_code["Day"]: 3,
+    light_code["Dusk/dawn"]: 2,
+    light_code["Dark street lights on"]: 1,
+    light_code["Dark street lights off"]: 0,
+    light_code["Dark no street lights"]: 0
+}
 
 # For testing:
 # v_path = "./vehicle.csv"
@@ -145,9 +154,43 @@ def encoded_column(df, column_name):
     encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False).set_output(transform='pandas')
     encoder.fit(df[[column_name]])
     encoded_df = encoder.transform(df[[column_name]])
-    df.drop(column_name, axis=1, inplace=True)
+    df = df.drop(column_name, axis=1)
     df = pd.concat([df, encoded_df], axis=1)
     return df
+
+
+def time_to_light_condition(time):
+    """
+    Given a time string in "HH:MM" format, return the corresponding light condition:
+    "Day", "Dusk", or "Dark"
+    """
+
+    # Transform to mins
+    hour = time.hour
+    minute = time.minute
+    total_minutes = hour * 60 + minute
+
+    if 6 * 60 <= total_minutes < 18 * 60:
+        return light_code["Day"]
+    elif 18 * 60 <= total_minutes < 20 * 60:
+        return light_code["Dusk/dawn"]
+    else:
+        return light_code["Dark street lights unknown"]
+
+def resolve_unknown_light(row, df):
+    light = row["LIGHT_CONDITION"]
+
+    if light == light_code["Unknown"]:
+        light = time_to_light_condition(row["ACCIDENT_TIME"])
+
+    if light == light_code["Dark street lights unknown"]:
+        temp = df[(df["NODE_ID"] == row["NODE_ID"]) 
+                   & (df["LIGHT_CONDITION"].isin([light_code["Dark street lights on"], 
+                                                  light_code["Dark street lights off"]]))]
+        if not temp.empty:
+            most_common = temp["LIGHT_CONDITION"].value_counts().idxmax()
+            return most_common
+    return light
 
 def environment_df(vehicle_path, accident_path, atomosphere_path):
     """
@@ -185,21 +228,33 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
 ]
 
     """
-    accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "LIGHT_CONDITION", "ROAD_GEOMETRY_DESC", "RMA"])
-    # remove all Null value
-    accident = accident.dropna()
-    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (~accident["LIGHT_CONDITION"].isin(Unknown_light))]
+    accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "ACCIDENT_TIME", "NODE_ID", "LIGHT_CONDITION", "ROAD_GEOMETRY_DESC", "RMA"])
+    # Process Time, preparing for light level
+    accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
+    # handel all Null value
+    accident["LIGHT_CONDITION"] = accident.apply(lambda row: resolve_unknown_light(row, accident), axis=1)
+    
+    # print(accident[accident["LIGHT_CONDITION"] == light_code["Dark no street lights"]].size)
+
+    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (accident["LIGHT_CONDITION"] != light_code["Dark street lights unknown"])]
     accident["LIGHT_CONDITION"] = accident["LIGHT_CONDITION"].map(reordered_light_dict)
     accident = accident.rename(columns={"RMA": "ROAD_TYPE", "LIGHT_CONDITION": "LIGHT_LEVEL"})
+    accident = accident.drop(columns=["ACCIDENT_TIME", "NODE_ID"])
 
+    # Read surface type
     vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "ROAD_SURFACE_TYPE_DESC"])
     # remove all Null value
     vehicle = vehicle.drop_duplicates().dropna()
     vehicle = vehicle[vehicle["ROAD_SURFACE_TYPE_DESC"] != "Not known"]
 
+    # Read weather:
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
+    # Remove Null value
     atmosphere = atmosphere[atmosphere["ATMOSPH_COND_DESC"] != "Not known"]
-    atmosphere = atmosphere.rename(columns={"ATMOSPH_COND_DESC": "ATMOSPH_COND"})
+    # One hot encoding (there are multiple ATMOSPH_COND for an accident)
+    atmosphere = encoded_column(atmosphere, "ATMOSPH_COND_DESC")
+    atmosphere = atmosphere.groupby("ACCIDENT_NO").max().reset_index()
+
     environment = pd.merge(accident, vehicle, on = "ACCIDENT_NO")
     environment = pd.merge(environment, atmosphere, on = "ACCIDENT_NO")
     environment = environment.dropna()
@@ -212,15 +267,16 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     return environment
 
 def classify_vehicle_size(vtype):
-    if vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM']:
+    if vtype in ['car', 'taxi']:
+        return 'car'
+    elif vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM']:
         return 'Light Commercial Vehicle'
     elif vtype in ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']:
         return 'Motorcycle'
     elif vtype in ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']:
         return 'Public Transport'
     elif vtype in ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
-                   'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
-                   'Parked trailers']:
+                   'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)']:
         return 'Prime Mover'
     elif vtype in ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']:
         return 'Heavy Truck'
@@ -239,19 +295,16 @@ def vehicle_df(vehicle_path):
     - VEHICLE_CATEGORY:
         1. 'Car'
         2. 'Station Wagon'
-        3. 'Taxi'
-        4. 'Utility'
-        5. 'Panel Van'
-        6. 'Utility'
-        7. 'Panel Van'
-        8. 'Light Commercial Vehicle'
-        3. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
-        4. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
-        5. 'Prime Mover': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
+        3. 'Utility'
+        4. 'Panel Van'
+        5. 'Light Commercial Vehicle'
+        6. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
+        7. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
+        8. 'Prime Mover': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
                    'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
                    'Parked trailers']
-        6. 'Heavy Truck': ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
-        7. 'Bicycle'
+        9. 'Heavy Truck': ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
+        10. 'Bicycle'
     
     - VEHICLE_DAMAGE_LEVEL: Indicates the level of damage to the vehicle.
         Contained value types (after mapping):
@@ -270,7 +323,6 @@ def vehicle_df(vehicle_path):
     vehicle["VEHICLE_CATEGORY"] = vehicle["VEHICLE_TYPE_DESC"].apply(classify_vehicle_size)
     # For viewing:
     vehicle = vehicle.drop("VEHICLE_TYPE_DESC", axis=1)
-    
     # print(vehicle["VEHICLE_CATEGORY"].unique())
     # print(vehicle[vehicle["VEHICLE_ID"].isna()])
     # print(vehicle.groupby(["VEHICLE_CATEGORY"]).size())
@@ -300,19 +352,16 @@ def outcome_df(vehicle_path, person_path, accident_path):
         - VEHICLE_CATEGORY:
             1. 'Car'
             2. 'Station Wagon'
-            3. 'Taxi'
-            4. 'Utility'
-            5. 'Panel Van'
-            6. 'Utility'
-            7. 'Panel Van'
-            8. 'Light Commercial Vehicle'
-            3. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
-            4. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
-            5. 'Prime Mover': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
+            3. 'Utility'
+            4. 'Panel Van'
+            5. 'Light Commercial Vehicle'
+            6. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
+            7. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
+            8. 'Prime Mover': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
                        'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
                        'Parked trailers']
-            6. 'Heavy Truck': ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
-            7. 'Bicycle'
+            9. 'Heavy Truck': ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
+            10. 'Bicycle'
 
         - NO_INJ_COUNT
 
@@ -331,18 +380,6 @@ def outcome_df(vehicle_path, person_path, accident_path):
         - REAR_AVG_INJURY: Average injury level of the rear passenger
 
         - FRONT_AVG_INJURY: Average injury level of the front passenger / Driver
-
-        - ACCIDENT_TYPE:
-            "Pedestrian on foot in toy/pram",
-            "Vehicles from adjacent directions (intersections only)",
-            "Vehicles from opposing directions",
-            "Vehicles from same direction",
-            "Manoeuvring",
-            "Overtaking",
-            "On path",
-            "Off path on straight",
-            "Off path on curve",
-            "Passenger and miscellaneous"
     """
     
 
@@ -362,19 +399,26 @@ def outcome_df(vehicle_path, person_path, accident_path):
     injury_count= person.groupby(["ACCIDENT_NO", "VEHICLE_ID"])["INJ_LEVEL"].value_counts().unstack(fill_value=0).reset_index()
     injury_count = injury_count.rename(columns=inj_name_dict)
 
-    # Find injury level
+    # Find average injury level
     avg_injury_level = person.groupby(["ACCIDENT_NO", "VEHICLE_ID"])["INJ_LEVEL"].mean().reset_index(name="AVERAGE_INJ_LEVEL")
+    avg_injury_level["AVERAGE_INJ_LEVEL"] = avg_injury_level["AVERAGE_INJ_LEVEL"].round().astype(int)
+
+    # Find average injury level by front and rear
     person["FRONT"] = person["SEATING_POSITION"].isin(front)
-    person.drop(columns=["SEATING_POSITION"])
+    person = person.drop(columns=["SEATING_POSITION"])
     vehicle = pd.merge(vehicle, person, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle_by_seat = vehicle[vehicle["VEHICLE_CATEGORY"].isin(rear_seat_type)]
     avg_injury_by_seat = vehicle_by_seat.groupby(["ACCIDENT_NO", "VEHICLE_ID", "FRONT"])["INJ_LEVEL"].mean().unstack().reset_index()
     avg_injury_by_seat = avg_injury_by_seat.rename(columns={True: "FRONT_AVG_INJURY", False: "REAR_AVG_INJURY"})
+    # Round injury level
+    avg_injury_by_seat["FRONT_AVG_INJURY"] = (avg_injury_by_seat["FRONT_AVG_INJURY"].apply(lambda x: int(round(x)) if pd.notnull(x) else x))
+    avg_injury_by_seat["REAR_AVG_INJURY"] = (avg_injury_by_seat["REAR_AVG_INJURY"].apply(lambda x: int(round(x)) if pd.notnull(x) else x))
 
+    # Merge together
     vehicle = pd.merge(vehicle, injury_count, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = pd.merge(vehicle, avg_injury_level, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = pd.merge(vehicle, avg_injury_by_seat, on=["ACCIDENT_NO", "VEHICLE_ID"])
-    vehicle = vehicle.drop(["SEATING_POSITION", "INJ_LEVEL", "FRONT"], axis=1)
+    vehicle = vehicle.drop(columns=["INJ_LEVEL", "FRONT"])
     vehicle = vehicle.drop_duplicates()
     vehicle = pd.merge(vehicle, accident, on=["ACCIDENT_NO"])
     # Viewing table:
@@ -386,7 +430,9 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     outcome = outcome_df(vehicle_path, person_path, accident_path)
     # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
-    everything.to_csv("table.csv", index=False)
+
+    # For viewing
+    # everything.to_csv("table.csv", index=False)
     return everything
 
 # For testing:
