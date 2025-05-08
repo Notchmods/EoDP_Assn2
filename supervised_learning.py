@@ -32,42 +32,86 @@ pd.set_option('display.max_columns', None)
 
 #Specify features to look for
 xOriginalCol=["ROAD_GEOMETRY_DESC","ROAD_TYPE","ROAD_SURFACE_TYPE_DESC",
-           "ATMOSPH_COND"] #independent variable
+           "ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
 yCol=["VEHICLE_DAMAGE_LEVEL","AVERAGE_INJ_LEVEL"] #dependent variable
 
 
 #Create a new DataFrame with One Hot Encoded values of the independent variables and the dependent variable
-OHE_df = pd.get_dummies(full_merged_df[['ROAD_GEOMETRY_DESC', 'ROAD_TYPE', 'ROAD_SURFACE_TYPE_DESC','ATMOSPH_COND']])
+#Environmental factors
+OHE_env_df = pd.get_dummies(full_merged_df[['ROAD_GEOMETRY_DESC', 'ROAD_TYPE', 'ROAD_SURFACE_TYPE_DESC','ATMOSPH_COND']])
+
+#vehicle type
+OHE_vtype_df = pd.get_dummies(full_merged_df['VEHICLE_CATEGORY'])
+
+
 
 #Extract all the columns of the independent variable from One Hot Encoded dataframe
-xCol = [col for col in OHE_df.columns]
+xCol = [col for col in OHE_env_df.columns]
+xCol_vehicle=[col for col in OHE_vtype_df.columns]
    
 #Analyse vehicle damage 
 def VD_Analysis():
-    #Prepare independent and dependent variable for training
-    OHE_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    x=OHE_df[xCol]
-    y=OHE_df["VEHICLE_DAMAGE_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    title="Predicted vehicle damage level injury level vs actual injury level"
-    organise_training_data(x,y,title)
+    #Environmental_factor_VD()
+    Vehicle_type_factor_VD()
+
      
 
 #Analyse Average Injury Level
 def AIL_Analysis():
+    #Environmental_factor_AIL()
+    Vehicle_type_factor_AIL()
+    
+
+
+#Analyse whether Environmental factors will have an impact on vehicle damage
+def Environmental_factor_VD():
     #Prepare independent and dependent variable for training
-    OHE_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
-    x=OHE_df[xCol]
-    y=OHE_df["AVERAGE_INJ_LEVEL"]
+    OHE_env_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
+    x=OHE_env_df[xCol]
+    y=OHE_env_df["VEHICLE_DAMAGE_LEVEL"]
     #Split into testing and training data for vehicle damage level
-    title="Predicted average injury level vs actual injury level"
+    title="Predicted vehicle damage level level vs actual vehicle damage level"
+    organise_training_data(x,y,title)
+    
+
+#Analyse whether vehicle type will have an impact on vehicle damage
+def Vehicle_type_factor_VD():
+    #Prepare independent and dependent variable for training
+    OHE_vtype_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
+    x=OHE_vtype_df[xCol_vehicle]
+    y=OHE_vtype_df["VEHICLE_DAMAGE_LEVEL"]
+    #Split into testing and training data for vehicle damage level
+    title="Predicted vehicle damage level vs actual vehicle damagelevel"
     organise_training_data(x,y,title)
 
+
+#Analyse whether Environmental factors will have an impact on Average Injury Level
+def Environmental_factor_AIL():
+    #Prepare independent and dependent variable for training
+    OHE_env_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
+    x=OHE_env_df[xCol]
+    y=OHE_env_df["AVERAGE_INJ_LEVEL"]
+    #Split into testing and training data for vehicle damage level
+    title="Predicted average injury level vs actual average injury level"
+    organise_training_data(x,y,title)
+
+#Analyse whether vehicle type will have an impact on Average Injury Level
+def Vehicle_type_factor_AIL():
+    #Prepare independent and dependent variable for training
+    OHE_vtype_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
+    x=OHE_vtype_df[xCol_vehicle]
+    y=OHE_vtype_df["AVERAGE_INJ_LEVEL"]
+    #Split into testing and training data for vehicle damage level
+    title="Predicted vehicle damage level vs actual vehicle damagelevel"
+    organise_training_data(x,y,title)
+
+"""Machine learning part"""
 
     
 #Organise a train test split for the data and run the 2 chosen Models
 def organise_training_data(x,y,title):
     xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.2,random_state=0)
+    print(xTrain)
     #Apply 2 supervised learning models to the data set
     ApplyKNN(xTrain,xTest,yTrain,yTest,title)
     ApplyLogReg(xTest,yTest,xTrain,yTrain,title)
@@ -86,7 +130,7 @@ def ApplyKNN(xTrain,xTest,yTrain,yTest,title):
     #Fit the model with class weight and train it
     knn_model.fit(x_train_scaled,yTrain)
     #Create prediction for the dependent variable
-    prediction= knn_model.predict(x_test_scaled)
+    prediction= knn_model.predict(x_test_scaled)    
 
     #Predict and evaluate
     print("KNN: ")
@@ -130,9 +174,9 @@ def ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,title):
     plt.show()
     print(cm)
 
+
+
 VD_Analysis()
 AIL_Analysis()
-
-
 
 
