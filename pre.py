@@ -109,9 +109,6 @@ Unwanted_type = ["Electric Device", "Horse (ridden or drawn)",
 model_to_type = {}
 body_to_type = {}
 
-rear_seat_type = ['Car', 'Station Wagon', 'Taxi', 'Utility', 'Panel Van',
-                'Utility', 'Panel Van', 'Light Commercial Vehicle']
-
 accident_type_dict = {0: "Pedestrian on foot in toy/pram",
     1: "Vehicles from adjacent directions (intersections only)",
     2: "Vehicles from opposing directions",
