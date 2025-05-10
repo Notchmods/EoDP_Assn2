@@ -100,10 +100,14 @@ level_of_damage_dict = {
 front = ["LF", "CF", "PL", "D"]
 UK_position = ["NA", "NK"]
 
-Unwanted_type = ["Unknown", "Not Applicable", "Not Known",
-                  "Electric Device", "Horse (ridden or drawn)",
+unknown_type = ["Unknown", "Not Applicable", "Not Known"]
+
+Unwanted_type = ["Electric Device", "Horse (ridden or drawn)",
                   "Plant machinery and Agricultural equipment",
                   "Parked trailers", "Other Vehicle"]
+
+model_to_type = {}
+body_to_type = {}
 
 rear_seat_type = ['Car', 'Station Wagon', 'Taxi', 'Utility', 'Panel Van',
                 'Utility', 'Panel Van', 'Light Commercial Vehicle']
@@ -143,18 +147,17 @@ reordered_light_dict = {
 # p_path = "./person.csv"
 # atmo_path = "./atmospheric_cond.csv"
 
-def encoded_column(df, column_name):
+def encoded_column(df, columns):
     """
     Used for replace the column in df, "column_name" with one hot encoding columns
     For example:
-    environment = encoded_column(environment, "ROAD_SURFACE_TYPE_DESC")
+    environment = encoded_column(environment, ["ROAD_SURFACE_TYPE_DESC", "LIGHT_LEVEL"])
     The column "ROAD_SURFACE_TYPE_DESC" would be on hot encoded
     """
-    # Fit the encoder once on training data
     encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False).set_output(transform='pandas')
-    encoder.fit(df[[column_name]])
-    encoded_df = encoder.transform(df[[column_name]])
-    df = df.drop(column_name, axis=1)
+    encoder.fit(df[columns])
+    encoded_df = encoder.transform(df[columns])
+    df = df.drop(columns=columns)
     df = pd.concat([df, encoded_df], axis=1)
     return df
 
@@ -170,9 +173,9 @@ def time_to_light_condition(time):
     minute = time.minute
     total_minutes = hour * 60 + minute
 
-    if 6 * 60 <= total_minutes < 18 * 60:
+    if 7 * 60 <= total_minutes < 18 * 60:
         return light_code["Day"]
-    elif 18 * 60 <= total_minutes < 20 * 60:
+    elif 18 * 60 <= total_minutes < 20 * 60 or 5 * 60 <= total_minutes < 7 * 60:
         return light_code["Dusk/dawn"]
     else:
         return light_code["Dark street lights unknown"]
@@ -192,6 +195,19 @@ def resolve_unknown_light(row, df):
             return most_common
     return light
 
+def resolve_unknown_surface(row, df):
+    surface = row["ROAD_SURFACE_TYPE_DESC"]
+    if pd.isna(surface) or surface == "Not known":
+        df = df[df["NODE_ID"] == row["NODE_ID"]]
+        freq = df["ROAD_SURFACE_TYPE_DESC"].value_counts()
+        if freq.index[0] != "Unknown":
+            return freq.index[0]
+        elif len(freq) > 1:
+            return freq.index[1]
+        else:
+            return freq.index[0]
+    return surface
+    
 def environment_df(vehicle_path, accident_path, atomosphere_path):
     """
     This function will take address of vehicle.csv and accident.csv as input, 
@@ -228,34 +244,44 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
 ]
 
     """
+    # Read from accident:
     accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "ACCIDENT_TIME", "NODE_ID", "LIGHT_CONDITION", "ROAD_GEOMETRY_DESC", "RMA"])
-    # Process Time, preparing for light level
-    accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
-    # handel all Null value
-    accident["LIGHT_CONDITION"] = accident.apply(lambda row: resolve_unknown_light(row, accident), axis=1)
     
-    # print(accident[accident["LIGHT_CONDITION"] == light_code["Dark no street lights"]].size)
+    # Remove all Unknown ROAD_GEOMETRY_DESC
+    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown")]
 
-    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (accident["LIGHT_CONDITION"] != light_code["Dark street lights unknown"])]
+    # replace unknown light level with predicted value based on location and time as much as we can
+    accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
+    accident["LIGHT_CONDITION"] = accident.apply(lambda row: resolve_unknown_light(row, accident), axis=1)
+    accident = accident[accident["LIGHT_CONDITION"] != light_code["Dark street lights unknown"]]
+    # level encoding LIGHT_CONDITION
     accident["LIGHT_CONDITION"] = accident["LIGHT_CONDITION"].map(reordered_light_dict)
     accident = accident.rename(columns={"RMA": "ROAD_TYPE", "LIGHT_CONDITION": "LIGHT_LEVEL"})
-    accident = accident.drop(columns=["ACCIDENT_TIME", "NODE_ID"])
 
-    # Read surface type
+    accident = accident.drop(columns=["ACCIDENT_TIME"])
+
+    
+    # Read surface type:
     vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "ROAD_SURFACE_TYPE_DESC"])
     # remove all Null value
-    vehicle = vehicle.drop_duplicates().dropna()
-    vehicle = vehicle[vehicle["ROAD_SURFACE_TYPE_DESC"] != "Not known"]
+    vehicle = vehicle.drop_duplicates()
+    # merge with accident (need to use NODE_ID to predict unknown surface type)
+    environment = pd.merge(accident, vehicle, on = "ACCIDENT_NO")
+    environment["ROAD_SURFACE_TYPE_DESC"] = environment.apply(lambda row: resolve_unknown_surface(row, environment), axis=1)
+    environment = environment[(environment["ROAD_SURFACE_TYPE_DESC"] != "Not known")]
+
+    environment = environment.drop(columns=["NODE_ID"])
+
 
     # Read weather:
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
     # Remove Null value
     atmosphere = atmosphere[atmosphere["ATMOSPH_COND_DESC"] != "Not known"]
     # One hot encoding (there are multiple ATMOSPH_COND for an accident)
-    atmosphere = encoded_column(atmosphere, "ATMOSPH_COND_DESC")
+    atmosphere = encoded_column(atmosphere, ["ATMOSPH_COND_DESC"])
     atmosphere = atmosphere.groupby("ACCIDENT_NO").max().reset_index()
 
-    environment = pd.merge(accident, vehicle, on = "ACCIDENT_NO")
+    
     environment = pd.merge(environment, atmosphere, on = "ACCIDENT_NO")
     environment = environment.dropna()
     # For viewing what each column is
@@ -263,10 +289,10 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     # print(environment["ROAD_GEOMETRY_DESC"].unique())
     # print(environment["ROAD_TYPE"].unique())
     # print(environment["ROAD_SURFACE_TYPE_DESC"].unique())
-    # environment.to_csv("environment.csv", index=False)
+    environment.to_csv("environment.csv", index=False)
     return environment
 
-def classify_vehicle_size(vtype):
+def classify_vehicle_type(vtype):
     if vtype in ['car', 'taxi']:
         return 'car'
     elif vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM']:
@@ -282,6 +308,35 @@ def classify_vehicle_size(vtype):
         return 'Heavy Truck'
     else:
         return vtype
+
+def resolve_unknown_type(row, df):
+    v_type = row["VEHICLE_TYPE_DESC"]
+
+    if pd.isna(v_type) or v_type in unknown_type:
+        model = row["VEHICLE_MODEL"]
+        body = row["VEHICLE_BODY_STYLE"]
+
+        # Predict type via model
+        if not pd.isna(model):
+            if model not in model_to_type.keys():
+                subset = df[(df['VEHICLE_MODEL'] == model) & (~df['VEHICLE_TYPE_DESC'].isin(unknown_type))]
+                if not subset.empty:
+                    model_to_type[model] = subset['VEHICLE_TYPE_DESC'].value_counts().idxmax()
+                else:
+                    model_to_type[model] = "Unknown"
+            v_type = model_to_type[model]
+
+        # Predict type via body
+        if v_type in unknown_type and not pd.isna(body):
+            if model not in body_to_type.keys():
+                subset = df[(df['VEHICLE_BODY_STYLE'] == body) & (~df['VEHICLE_TYPE_DESC'].isin(unknown_type))]
+                if not subset.empty:
+                    body_to_type[model] = subset['VEHICLE_TYPE_DESC'].value_counts().idxmax()
+                else:
+                    body_to_type[model] = "Unknown"
+            v_type = body_to_type[model]
+
+    return v_type
 
 def vehicle_df(vehicle_path):
     """
@@ -315,12 +370,19 @@ def vehicle_df(vehicle_path):
             4: "Major (unit towed away)",
             5: "Extensive (unrepairable)"
     """
-    vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "VEHICLE_TYPE_DESC", "LEVEL_OF_DAMAGE"])
+    vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "VEHICLE_MODEL", "VEHICLE_BODY_STYLE", "VEHICLE_TYPE_DESC", "LEVEL_OF_DAMAGE"])
     # For viewing what each column is
     vehicle = vehicle[(~vehicle["VEHICLE_TYPE_DESC"].isin(Unwanted_type)) & (vehicle["LEVEL_OF_DAMAGE"] != 9)]
+    # Predict unknown type as much as we can
+    vehicle["VEHICLE_TYPE_DESC"] = vehicle.apply(lambda row: resolve_unknown_type(row, vehicle), axis=1)
+    vehicle = vehicle[~vehicle["VEHICLE_TYPE_DESC"].isin(unknown_type)]
     vehicle = vehicle.rename(columns={"LEVEL_OF_DAMAGE": "VEHICLE_DAMAGE_LEVEL"})
     vehicle["VEHICLE_DAMAGE_LEVEL"] = vehicle["VEHICLE_DAMAGE_LEVEL"].replace(6, 0)
-    vehicle["VEHICLE_CATEGORY"] = vehicle["VEHICLE_TYPE_DESC"].apply(classify_vehicle_size)
+    # After predicting we can delete the columns only use for prediction
+    vehicle.drop(columns=["VEHICLE_MODEL","VEHICLE_BODY_STYLE"], inplace=True)
+
+    # Group similar vehicle types
+    vehicle["VEHICLE_CATEGORY"] = vehicle["VEHICLE_TYPE_DESC"].apply(classify_vehicle_type)
     # For viewing:
     vehicle = vehicle.drop("VEHICLE_TYPE_DESC", axis=1)
     # print(vehicle["VEHICLE_CATEGORY"].unique())
@@ -384,7 +446,7 @@ def outcome_df(vehicle_path, person_path, accident_path):
     
 
     vehicle = vehicle_df(vehicle_path)
-    person = pd.read_csv(person_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "SEATING_POSITION", "INJ_LEVEL"])
+    person = pd.read_csv(person_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "INJ_LEVEL"])
     
     # Column: Accident Type
     accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "DCA_CODE"])
@@ -403,19 +465,9 @@ def outcome_df(vehicle_path, person_path, accident_path):
     avg_injury_level = person.groupby(["ACCIDENT_NO", "VEHICLE_ID"])["INJ_LEVEL"].mean().reset_index(name="AVERAGE_INJ_LEVEL")
     avg_injury_level["AVERAGE_INJ_LEVEL"] = avg_injury_level["AVERAGE_INJ_LEVEL"].round().astype(int)
 
-    # Find average injury level by front and rear
-    person["FRONT"] = person["SEATING_POSITION"].isin(front)
-    person = person.drop(columns=["SEATING_POSITION"])
-    vehicle = pd.merge(vehicle, person, on=["ACCIDENT_NO", "VEHICLE_ID"])
-    vehicle_by_seat = vehicle[vehicle["VEHICLE_CATEGORY"].isin(rear_seat_type)]
-    avg_injury_by_seat = vehicle_by_seat.groupby(["ACCIDENT_NO", "VEHICLE_ID", "FRONT"])["INJ_LEVEL"].mean().unstack().reset_index()
-    avg_injury_by_seat = avg_injury_by_seat.rename(columns={True: "FRONT_AVG_INJURY", False: "REAR_AVG_INJURY"})
-
     # Merge together
     vehicle = pd.merge(vehicle, injury_count, on=["ACCIDENT_NO", "VEHICLE_ID"])
     vehicle = pd.merge(vehicle, avg_injury_level, on=["ACCIDENT_NO", "VEHICLE_ID"])
-    vehicle = pd.merge(vehicle, avg_injury_by_seat, on=["ACCIDENT_NO", "VEHICLE_ID"])
-    vehicle = vehicle.drop(columns=["INJ_LEVEL", "FRONT"])
     vehicle = vehicle.drop_duplicates()
     vehicle = pd.merge(vehicle, accident, on=["ACCIDENT_NO"])
     # Viewing table:
@@ -429,7 +481,7 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
 
     # For viewing
-    # everything.to_csv("table.csv", index=False)
+    everything.to_csv("table.csv", index=False)
     return everything
 
 # For testing:
