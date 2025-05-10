@@ -290,8 +290,8 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     return environment
 
 def classify_vehicle_type(vtype):
-    if vtype in ['car', 'taxi']:
-        return 'car'
+    if vtype in ['Car', 'Taxi']:
+        return 'Car'
     elif vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM']:
         return 'Light Commercial Vehicle'
     elif vtype in ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']:
@@ -300,7 +300,7 @@ def classify_vehicle_type(vtype):
         return 'Public Transport'
     elif vtype in ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
                    'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)']:
-        return 'Prime Mover'
+        return 'Heavy Truck'
     elif vtype in ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']:
         return 'Heavy Truck'
     else:
