@@ -25,19 +25,6 @@ Question: What are the differences in traffic accident outcomes among various ve
         - number of people (driver or passenger) injured from the accident
             Notes: There are counts for diffrent level of injury. 
         - average injury level across driver and all passengers
-        - average injury level for the front seat and rear seat
-            Notes: if you find these two columns containing null value, it may because:
-                1. This type of vehicle does not have rear seat. 
-                    Only   ['Car', 
-                            'Station Wagon', 
-                            'Taxi', 'Utility', 
-                            'Panel Van',
-                            'Utility', 
-                            'Panel Van', 
-                            'Light Commercial Vehicle']
-                    has front seats and rear seats
-                2. If it is null in the rear column, it could because no rear-seat passenger 
-                   (DIFFERENT FROM NOT INJURY. if no one injury, it should be 0)
 
 Some Questions I'm not sure:
 - number of people (driver or passenger) injured VS. average injury level
@@ -352,11 +339,10 @@ def vehicle_df(vehicle_path):
         5. 'Light Commercial Vehicle'
         6. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
         7. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
-        8. 'Prime Mover': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
+        8. 'Heavy Truck': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
                    'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
-                   'Parked trailers']
-        9. 'Heavy Truck': ['Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
-        10. 'Bicycle'
+                   'Parked trailers', 'Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
+        9. 'Bicycle'
     
     - VEHICLE_DAMAGE_LEVEL: Indicates the level of damage to the vehicle.
         Contained value types (after mapping):
