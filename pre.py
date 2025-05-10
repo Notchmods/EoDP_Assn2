@@ -279,7 +279,7 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
 def classify_vehicle_type(vtype):
     if vtype in ['Car', 'Taxi']:
         return 'Car'
-    elif vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM']:
+    elif vtype in ['Light Commercial Vehicle (Rigid) <= 4.5 Tonnes GVM', 'Panel Van']:
         return 'Light Commercial Vehicle'
     elif vtype in ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']:
         return 'Motorcycle'
@@ -335,14 +335,13 @@ def vehicle_df(vehicle_path):
         1. 'Car'
         2. 'Station Wagon'
         3. 'Utility'
-        4. 'Panel Van'
-        5. 'Light Commercial Vehicle'
-        6. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
-        7. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
-        8. 'Heavy Truck': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
+        4. 'Light Commercial Vehicle'
+        5. 'Motorcycle': ['Motor Cycle', 'Moped', 'Motor Scooter', 'Quad Bike']
+        6. 'Public Transport': ['Tram', 'Bus/Coach', 'Mini Bus(9-13 seats)', 'Train']
+        7. 'Heavy Truck': ['Prime Mover Only', 'Prime Mover B-Double', 'Prime Mover B-Triple',
                    'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
                    'Parked trailers', 'Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
-        9. 'Bicycle'
+        8. 'Bicycle'
     
     - VEHICLE_DAMAGE_LEVEL: Indicates the level of damage to the vehicle.
         Contained value types (after mapping):
