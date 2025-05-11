@@ -125,11 +125,21 @@ reordered_light_dict = {
     light_code["Dark no street lights"]: 0
 }
 
+weather_priority_map = {
+    "Raining": 0,
+    "Snowing": 1,
+    "Fog": 2,
+    "Smoke": 3,
+    "Dust": 4,
+    "Strong winds": 5,
+    "Clear": 6
+}
+
 # For testing:
-# v_path = "./vehicle.csv"
-# a_path = "./accident.csv"
-# p_path = "./person.csv"
-# atmo_path = "./atmospheric_cond.csv"
+v_path = "./vehicle.csv"
+a_path = "./accident.csv"
+p_path = "./person.csv"
+atmo_path = "./atmospheric_cond.csv"
 
 def encoded_column(df, columns):
     """
@@ -261,11 +271,15 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
     # Remove Null value
     atmosphere = atmosphere[atmosphere["ATMOSPH_COND_DESC"] != "Not known"]
+
+    main_weather = (atmosphere.groupby("ACCIDENT_NO")["ATMOSPH_COND_DESC"]
+                    .apply(lambda x: sorted(set(x), key=lambda w: weather_priority_map.get(w))[0])
+                    .reset_index(name="MAIN_ATMOSPH_COND"))
     # One hot encoding (there are multiple ATMOSPH_COND for an accident)
     atmosphere = encoded_column(atmosphere, ["ATMOSPH_COND_DESC"])
     atmosphere = atmosphere.groupby("ACCIDENT_NO").max().reset_index()
 
-    
+    environment = pd.merge(environment, main_weather, on = "ACCIDENT_NO")
     environment = pd.merge(environment, atmosphere, on = "ACCIDENT_NO")
     environment = environment.dropna()
     # For viewing what each column is
@@ -273,7 +287,7 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     # print(environment["ROAD_GEOMETRY_DESC"].unique())
     # print(environment["ROAD_TYPE"].unique())
     # print(environment["ROAD_SURFACE_TYPE_DESC"].unique())
-    environment.to_csv("environment.csv", index=False)
+    # environment.to_csv("environment.csv", index=False)
     return environment
 
 def classify_vehicle_type(vtype):
