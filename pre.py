@@ -136,10 +136,10 @@ weather_priority_map = {
 }
 
 # For testing:
-# v_path = "./vehicle.csv"
-# a_path = "./accident.csv"
-# p_path = "./person.csv"
-# atmo_path = "./atmospheric_cond.csv"
+v_path = "./vehicle.csv"
+a_path = "./accident.csv"
+p_path = "./person.csv"
+atmo_path = "./atmospheric_cond.csv"
 
 def encoded_column(df, columns):
     """
@@ -243,6 +243,8 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     
     # Remove all Unknown ROAD_GEOMETRY_DESC and Unknown or other speed zone
     accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (~accident["SPEED_ZONE"].isin([777, 888, 999]))]
+    # due to insufficient sample size of speed zone
+    accident["SPEED_ZONE"] = accident["SPEED_ZONE"].replace({75: 80})
 
     # replace unknown light level with predicted value based on location and time as much as we can
     accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
@@ -263,9 +265,7 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     environment = pd.merge(accident, vehicle, on = "ACCIDENT_NO")
     environment["ROAD_SURFACE_TYPE_DESC"] = environment.apply(lambda row: resolve_unknown_surface(row, environment), axis=1)
     environment = environment[(environment["ROAD_SURFACE_TYPE_DESC"] != "Not known")]
-
     environment = environment.drop(columns=["NODE_ID"])
-
 
     # Read weather:
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
@@ -478,9 +478,3 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     # For viewing
     everything.to_csv("table.csv", index=False)
     return everything
-
-# For testing:
-# outcome_df(v_path, a_path, p_path)
-# vehicle_df(v_path)
-# environment_df(v_path, a_path, atmo_path)
-# everything_df(v_path, a_path, atmo_path, p_path)
