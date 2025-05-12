@@ -81,6 +81,12 @@ vehicle_types = [
     "Public Transport"
 ]
 
+# Pearson Correlation for SPEED_ZONE
+for v_type in vehicle_types:
+    subset = df[df["VEHICLE_CATEGORY"] == v_type]
+    print(num_independent(subset, "SPEED_ZONE", "AVERAGE_INJ_LEVEL"))
+    print(num_independent(subset, "SPEED_ZONE", "VEHICLE_DAMAGE_LEVEL"))
+
 for v_type in vehicle_types:
     subset = df[df["VEHICLE_CATEGORY"] == v_type]
     print(f"\n===== {v_type} =====")
