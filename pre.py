@@ -59,6 +59,7 @@ A few possible problems we could solve:
 """
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
+import re
 
 reordered_INJ_dict = {
     1: 3,
@@ -134,6 +135,14 @@ weather_priority_map = {
     "Strong winds": 5,
     "Clear": 6
 }
+
+def simplify_geometry(desc):
+    if desc in ["Not at intersection", "Dead end", "Private property", "Road closure"]:
+        return "Not at intersection"
+    elif desc in ["Cross intersection", "T intersection"]:
+        return "Standard intersection"
+    else:
+        return "Complex intersection"
 
 # For testing:
 v_path = "./vehicle.csv"
@@ -212,9 +221,9 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
 
         - ROAD_GEOMETRY_DESC: Dtype of road structure where the accident occurred.
             Contained value types:
-                ['T intersection', 'Not at intersection', 'Cross intersection',
-                 'Multiple intersection', 'Y intersection', 'Dead end',
-                 'Private property', 'Road closure']
+                - "Not at intersection"
+                - "Standard intersection"
+                - "Complex intersection"
 
         - LIGHT_LEVEL: Indicates the lighting at the time of the accident, 
                        encoded numerically, higher->lighter.
@@ -243,8 +252,10 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     
     # Remove all Unknown ROAD_GEOMETRY_DESC and Unknown or other speed zone
     accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (~accident["SPEED_ZONE"].isin([777, 888, 999]))]
-    # due to insufficient sample size of speed zone
+    # due to insufficient size of speed zone 75, merge 75 to 80
     accident["SPEED_ZONE"] = accident["SPEED_ZONE"].replace({75: 80})
+    # Simplify ROAD_GEOMETRY_DESC
+    accident["ROAD_GEOMETRY_DESC"] = accident["ROAD_GEOMETRY_DESC"].apply(simplify_geometry)
 
     # replace unknown light level with predicted value based on location and time as much as we can
     accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
@@ -271,15 +282,16 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
     # Remove Null value
     atmosphere = atmosphere[atmosphere["ATMOSPH_COND_DESC"] != "Not known"]
-
-    main_weather = (atmosphere.groupby("ACCIDENT_NO")["ATMOSPH_COND_DESC"]
-                    .apply(lambda x: sorted(set(x), key=lambda w: weather_priority_map.get(w))[0])
-                    .reset_index(name="MAIN_ATMOSPH_COND"))
     # One hot encoding (there are multiple ATMOSPH_COND for an accident)
     atmosphere = encoded_column(atmosphere, ["ATMOSPH_COND_DESC"])
     atmosphere = atmosphere.groupby("ACCIDENT_NO").max().reset_index()
+    atmosphere["RAIN/SNOW"] = (atmosphere["ATMOSPH_COND_DESC_Raining"].astype(int) | atmosphere["ATMOSPH_COND_DESC_Snowing"].astype(int))
+    atmosphere["FOG/SMOKE/DUST"] = (atmosphere["ATMOSPH_COND_DESC_Fog"].astype(int)
+                                                                 | atmosphere["ATMOSPH_COND_DESC_Smoke"].astype(int) 
+                                                                 | atmosphere["ATMOSPH_COND_DESC_Dust"].astype(int))
+    atmosphere["CLEAR"] = atmosphere["ATMOSPH_COND_DESC_Clear"].astype(int)
+    atmosphere = atmosphere.drop(columns=[col for col in atmosphere.columns if re.match(r"^ATMOSPH_COND_DESC_", col)])
 
-    environment = pd.merge(environment, main_weather, on = "ACCIDENT_NO")
     environment = pd.merge(environment, atmosphere, on = "ACCIDENT_NO")
     environment = environment.dropna()
     # For viewing what each column is
@@ -478,3 +490,9 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     # For viewing
     everything.to_csv("table.csv", index=False)
     return everything
+
+# For testing:
+# outcome_df(v_path, a_path, p_path)
+# vehicle_df(v_path)
+# environment_df(v_path, a_path, atmo_path)
+# everything_df(v_path, a_path, atmo_path, p_path)
