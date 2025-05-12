@@ -136,10 +136,10 @@ weather_priority_map = {
 }
 
 # For testing:
-v_path = "./vehicle.csv"
-a_path = "./accident.csv"
-p_path = "./person.csv"
-atmo_path = "./atmospheric_cond.csv"
+# v_path = "./vehicle.csv"
+# a_path = "./accident.csv"
+# p_path = "./person.csv"
+# atmo_path = "./atmospheric_cond.csv"
 
 def encoded_column(df, columns):
     """
@@ -239,10 +239,10 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
 
     """
     # Read from accident:
-    accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "ACCIDENT_TIME", "NODE_ID", "LIGHT_CONDITION", "ROAD_GEOMETRY_DESC", "RMA"])
+    accident = pd.read_csv(accident_path, usecols=["ACCIDENT_NO", "ACCIDENT_TIME", "NODE_ID", "LIGHT_CONDITION", "ROAD_GEOMETRY_DESC", "RMA", "SPEED_ZONE"])
     
-    # Remove all Unknown ROAD_GEOMETRY_DESC
-    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown")]
+    # Remove all Unknown ROAD_GEOMETRY_DESC and Unknown or other speed zone
+    accident = accident[(accident["ROAD_GEOMETRY_DESC"] != "Unknown") & (~accident["SPEED_ZONE"].isin([777, 888, 999]))]
 
     # replace unknown light level with predicted value based on location and time as much as we can
     accident["ACCIDENT_TIME"] = pd.to_datetime(accident["ACCIDENT_TIME"], format="%H:%M:%S")
