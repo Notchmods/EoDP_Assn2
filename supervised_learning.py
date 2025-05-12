@@ -6,7 +6,7 @@ Dependent variable- Vehicle damage and Average Injury level
 
 
 The Supervised learning algorithm that I've selected are
-K-Nearest Neighbor and Logistic Regression
+K-Nearest Neighbor and Decision Tree
 
 """
 
@@ -16,12 +16,10 @@ import numpy as np
 from sklearn.model_selection import train_test_split,cross_val_score
 from sklearn.preprocessing import OneHotEncoder,StandardScaler,LabelEncoder    
 from sklearn.metrics import confusion_matrix,classification_report,ConfusionMatrixDisplay
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.multioutput import MultiOutputClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score,mean_squared_error, r2_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pre as preprocessed
@@ -33,51 +31,18 @@ pd.set_option('display.max_columns', None)
 
 full_merged_df=full_merged_df.head(10000)
 #Specify features to look for
-xOriginalCol=["ROAD_GEOMETRY_DESC","ROAD_TYPE","ROAD_SURFACE_TYPE_DESC",
+xOriginalCol=["ROAD_TYPE",
            "ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
 yCol=["VEHICLE_DAMAGE_LEVEL","AVERAGE_INJ_LEVEL"] #dependent variable
 
 xCol=[]
-
-
 #Create a new DataFrame with One Hot Encoded values of the independent variables and the dependent variable
-#Environmental factors
-OHE_env_df = pd.get_dummies(full_merged_df[['ROAD_GEOMETRY_DESC', 'ROAD_TYPE', 'ROAD_SURFACE_TYPE_DESC']])
-
-#vehicle type
-OHE_vtype_df = pd.get_dummies(full_merged_df[['VEHICLE_CATEGORY']])
-
-#both
-OHE_both_df = pd.get_dummies(full_merged_df[['ROAD_GEOMETRY_DESC', 'ROAD_TYPE', 'ROAD_SURFACE_TYPE_DESC','VEHICLE_CATEGORY']])
+OHE_both_df = pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
                          
-
-def extract_col():
-    global xCol, xCol_vehicle,full_merged_df
-    #Add extra columns before extracting column names
-    add_col()
-    #Extract all the columns of the independent variable from One Hot Encoded dataframe
-    xCol = [col for col in OHE_env_df.columns]
-    xCol_vehicle=[col for col in OHE_vtype_df.columns]
     
-
 def add_col():
     #Add vehicle damage level and one hot encoding for atmospheric
     #conditions into the dataframe.
-    OHE_env_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    OHE_env_df[["ATMOSPH_COND_DESC_Clear",
-                "ATMOSPH_COND_DESC_Dust",
-                "ATMOSPH_COND_DESC_Fog",
-                "ATMOSPH_COND_DESC_Raining",
-                "ATMOSPH_COND_DESC_Smoke",
-                "ATMOSPH_COND_DESC_Snowing",
-                "ATMOSPH_COND_DESC_Strong winds"]]=full_merged_df[["ATMOSPH_COND_DESC_Clear",
-                "ATMOSPH_COND_DESC_Dust",
-                "ATMOSPH_COND_DESC_Fog",
-                "ATMOSPH_COND_DESC_Raining",
-                "ATMOSPH_COND_DESC_Smoke",
-                "ATMOSPH_COND_DESC_Snowing",
-                "ATMOSPH_COND_DESC_Strong winds"]]
-
     OHE_both_df[["ATMOSPH_COND_DESC_Clear",
                 "ATMOSPH_COND_DESC_Dust",
                 "ATMOSPH_COND_DESC_Fog",
@@ -91,145 +56,147 @@ def add_col():
                 "ATMOSPH_COND_DESC_Smoke",
                 "ATMOSPH_COND_DESC_Snowing",
                 "ATMOSPH_COND_DESC_Strong winds"]]
-
-
-#Train and predict vehicle damage based on vehicle and environmental factor separately 
-def VD_Analysis():
-    #Environmental_factor_VD()
-    Vehicle_type_factor_VD()
-
-     
-#Train and predict Average Injury Level based on vehicle and environmental factor separately 
-def AIL_Analysis():
-    #Environmental_factor_AIL()
-    Vehicle_type_factor_AIL()
+    
+"""Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
 
 #Train and predict vehicle damage based on vehicle and environmental factor together 
 def both_analysis():
     #Merge both list together for the independent variable
-    x_new_Col=xCol+xCol_vehicle
+    global xCol
+    xCol=[col for col in OHE_both_df.columns]
     OHE_both_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    x=OHE_both_df[x_new_Col]
-    y=OHE_both_df ["VEHICLE_DAMAGE_LEVEL"]
+    x=OHE_both_df[xCol]
+    y=OHE_both_df["VEHICLE_DAMAGE_LEVEL"]
     #Split into testing and training data for vehicle damage level
-    title="Predicted vehicle damage level vs actual vehicle damage level"
-    organise_training_data(x,y,title)
+    subtitle="Predicted vehicle damage level vs actual vehicle damage level"
+    organise_training_data(x,y,subtitle)
     
+#Predict the frequency of accidents with both KNN and Logistic regression models.
+def freq_accidents():
+    #Count accident frequency by the attributes
+    accident_freq_df = full_merged_df.groupby([
+    'ROAD_TYPE', 
+    'VEHICLE_CATEGORY'
+    ]).size().reset_index(name='ACCIDENT_COUNT')
+       
+    #Everything in the x is independent variable except for Accident count
+    x = pd.get_dummies(accident_freq_df.drop(columns='ACCIDENT_COUNT'))
+    #Accident count is the dependent variable
+    y = accident_freq_df['ACCIDENT_COUNT']
+    #Organise train test split for data
+    xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.2,random_state=0)
+    KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df)
+    DecisionTree_Continuous(xTrain,xTest,yTrain,yTest)
 
-
-#Analyse whether Environmental factors will have an impact on vehicle damage
-def Environmental_factor_VD():
-    #Prepare independent and dependent variable for training
-    OHE_env_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    x=OHE_env_df[xCol]
-    y=OHE_env_df["VEHICLE_DAMAGE_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    title="Predicted vehicle damage level level vs actual vehicle damage level"
-    organise_training_data(x,y,title)
     
-
-#Analyse whether vehicle type will have an impact on vehicle damage
-def Vehicle_type_factor_VD():
-    #Prepare independent and dependent variable for training
-    OHE_vtype_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    x=OHE_vtype_df[xCol_vehicle]
-    y=OHE_vtype_df["VEHICLE_DAMAGE_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    title="Predicted vehicle damage level vs actual vehicle damage level"
-    organise_training_data(x,y,title)
-
-
-#Analyse whether Environmental factors will have an impact on Average Injury Level
-def Environmental_factor_AIL():
-    #Prepare independent and dependent variable for training
-    OHE_env_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
-    x=OHE_env_df[xCol]
-    y=OHE_env_df["AVERAGE_INJ_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    title="Predicted average injury level vs actual average injury level"
-    organise_training_data(x,y,title)
-   
-
-#Analyse whether vehicle type will have an impact on Average Injury Level
-def Vehicle_type_factor_AIL():
-    #Prepare independent and dependent variable for training
-    OHE_vtype_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
-    x=OHE_vtype_df[xCol_vehicle]
-    y=OHE_vtype_df["AVERAGE_INJ_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    title="Predicted vehicle damage level vs actual vehicle damage level"
-    organise_training_data(x,y,title)
+#def Logistic_Regression_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
 
 """Machine learning part"""
 
     
 #Organise a train test split for the data and run the 2 chosen Models
-def organise_training_data(x,y,title):
+def organise_training_data(x,y,subtitle):
     xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.2,random_state=0)
     #Apply 2 supervised learning models to the data set
-    ApplyKNN(xTrain,xTest,yTrain,yTest,title)
-    ApplyLogReg(xTest,yTest,xTrain,yTrain,title)
+    ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle)
+    DecisionTree(xTrain,xTest,yTrain,yTest,subtitle)
     
 
-def ApplyKNN(xTrain,xTest,yTrain,yTest,title):
-    #Scale the KNN model
-    scaler = StandardScaler()
-    x_train_scaled = scaler.fit_transform(xTrain)
-    x_test_scaled = scaler.transform(xTest)
-
-    #Create a KNN model
-    knn_model=KNeighborsClassifier(metric='manhattan',n_neighbors=10)
-    
+def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
+    #Create a KNN model using Manhattan metric with k=5
+    knn_model=KNeighborsClassifier(n_neighbors=5)
     
     #Fit the model with class weight and train it
-    knn_model.fit(x_train_scaled,yTrain)
-    #Create prediction for the dependent variable
-    prediction= knn_model.predict(x_test_scaled)    
+    knn_model.fit(xTrain,yTrain)
+    #Testing the model by predicting the test data set.
+    prediction= knn_model.predict(xTest)    
 
     #Predict and evaluate
     print("KNN: ")
     print("Prediction: ",prediction)
     print("Accuracy:", accuracy_score(yTest, prediction))
     print(classification_report(yTest,prediction))
-    ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,title)    
+    ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,subtitle)    
 
-
-
-
-def ApplyLogReg(xTest,yTest,xTrain,yTrain,title):
-    #Scale the x for logistic regression model
+def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
+    #Scale the data
     scaler = StandardScaler()
-    x_train_scaled = scaler.fit_transform(xTrain)
-    x_test_scaled = scaler.transform(xTest)
-    
-    #Logistic regression
-    logreg= LogisticRegression(class_weight='balanced',random_state=16)
-    logreg.fit(x_train_scaled,yTrain)
-    prediction=logreg.predict(x_test_scaled)
+    X_train_scaled = scaler.fit_transform(xTrain)
+    X_test_scaled = scaler.transform(xTest)
+    #Use KNN Regressor as the accident count is a continuous value rather than categorical
+    knn_reg = KNeighborsRegressor(n_neighbors=5, weights='distance', metric='manhattan')
+    #Train the data
+    knn_reg.fit(X_train_scaled, yTrain)
+    #Testing the model by predicting the test data set.
+    prediction = knn_reg.predict(X_test_scaled)
+    print(prediction)
 
-    #Predict and evaluate result
-    print("Logistic Regression: ")
+    print("Mean Squared Error:", mean_squared_error(yTest, prediction))
+    print("R² Score:", r2_score(yTest, prediction))
+
+    # Reset index so we can merge categories with predictions
+    X_test_with_index = xTest.copy()
+    X_test_with_index['Predicted_ACCIDENT_COUNT'] = prediction
+    X_test_with_index['Actual_ACCIDENT_COUNT'] = yTest.values
+
+    # Merge back with original categorical data
+    decoded_test = pd.concat([X_test_with_index.reset_index(drop=True),
+                              accident_freq_df.loc[xTest.index].reset_index(drop=True)],
+                             axis=1)
+
+    # Drop duplicate accident count if needed
+    decoded_test = decoded_test.drop(columns='ACCIDENT_COUNT')
+
+    # Show
+    print(decoded_test)
+
+def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
+    #Set decision tree depth to 5
+    tree= DecisionTreeClassifier(max_depth=5,class_weight='balanced',random_state=42)
+    #Train the data
+    tree.fit(xTrain,yTrain)
+    #Testing the model by predicting the test data set.
+    prediction=tree.predict(xTest)
+    #Predict and evaluate
+    print("Decision Tree: ")
     print("Prediction: ",prediction)
     print("Accuracy:", accuracy_score(yTest, prediction))
     print(classification_report(yTest,prediction))
-    ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,title)
+   
+def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest):
+    #Set decision tree depth to 5
+    tree= DecisionTreeRegressor(max_depth=5,random_state=42)
+    #Train the data
+    tree.fit(xTrain,yTrain)
+    #Testing the model by predicting the test data set.
+    prediction=tree.predict(xTest)
+
+    #Predict and evaluate
+    print("Decision Tree: ")
+    print("Prediction: ",prediction)
+    print("Mean Squared Error:", mean_squared_error(yTest, prediction))
+    print("R² Score:", r2_score(yTest, prediction))
 
 
     
 #Evaluate the model with confusion matrix
-def ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,title):
+def ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,subtitle):
     #Plot confusion matrix
     cm=confusion_matrix(yTest, prediction)
     display= ConfusionMatrixDisplay(confusion_matrix=cm)
     #Represent confusion matrix as a heatmap
     display.plot(cmap=plt.cm.Blues)
-    plt.title(title, fontsize=15, pad=20)
-    plt.xlabel('Predicted', fontsize=11)
+    plt.title(subtitle, fontsize=11, pad=20)
+    plt.xlabel('Predicted', x=0.5, y=3,fontsize=11)
     plt.ylabel('Actual', fontsize=11)
     plt.show()
     print(cm)
 
-extract_col()
+
+#Execute the needed functions to get the result
+add_col()
 both_analysis()
+freq_accidents()
+
 
 
