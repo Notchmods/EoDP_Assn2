@@ -28,7 +28,7 @@ import pre as preprocessed
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
 pd.set_option('display.max_columns', None)
-full_merged_df=full_merged_df.head(1000)    
+#full_merged_df=full_merged_df.head(1000)    
 #Specify features to look for
 xOriginalCol=["ROAD_TYPE",
            "ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
@@ -45,6 +45,9 @@ def add_col():
     global OHE_both_df
     OHE_both_df=pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
     OHE_both_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]
+    #Add speed zone into dataframe
+    OHE_both_df["SPEED_ZONE"]=full_merged_df["SPEED_ZONE"]
+    
     
 """Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
 
@@ -66,8 +69,11 @@ def both_analysis():
 
     #Analyse Average Injury Level
     y=OHE_both_df["AVERAGE_INJ_LEVEL"]
+    scaler = StandardScaler()
+    x_scaled = scaler.fit_transform(x)
+    x_scaled = pd.DataFrame(x_scaled)
     subtitle="Predicted vehicle damage level vs average injury level"
-    organise_training_data(x,y,subtitle)
+    organise_training_data(x_scaled,y,subtitle)
      
     
 #Predict the frequency of accidents with both KNN and Logistic regression models.
@@ -85,7 +91,7 @@ def freq_accidents():
     #Organise train test split for data
     xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.2,random_state=0)
     KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df)
-    DecisionTree_Continuous(xTrain,xTest,yTrain,yTest)
+    DecisionTree_Continuous(xTrain,xTest,yTrain,yTest,accident_freq_df)
 
 """Machine learning part"""
 
@@ -129,6 +135,8 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
 
     print("Mean Squared Error:", mean_squared_error(yTest, prediction))
     print("R² Score:", r2_score(yTest, prediction))
+
+    #Create table to display prediction
     decoded = accident_freq_df.iloc[xTest.index].copy()
     decoded['Actual_ACCIDENT_COUNT'] = yTest.values
     decoded['Predicted_ACCIDENT_COUNT'] = prediction
@@ -148,6 +156,7 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     print("Prediction: ",prediction)
     print("Accuracy:", accuracy_score(yTest, prediction))
     print(classification_report(yTest,prediction))
+    #Confusion Matrix
     ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,subtitle)
     plot_tree(tree,
           feature_names=xTest.columns,     # show your actual feature names
@@ -163,7 +172,7 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
       
     
    
-def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest):
+def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest,accident_freq_df):
     #Set decision tree depth to 5
     tree= DecisionTreeRegressor(max_depth=5,random_state=42)
     #Train the data
@@ -176,6 +185,10 @@ def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest):
     print("Prediction: ",prediction)
     print("Mean Squared Error:", mean_squared_error(yTest, prediction))
     print("R² Score:", r2_score(yTest, prediction))
+    #Create table to display prediction
+    decoded = accident_freq_df.iloc[xTest.index].copy()
+    decoded['Actual_ACCIDENT_COUNT'] = yTest.values
+    decoded['Predicted_ACCIDENT_COUNT'] = prediction
 
 
     
