@@ -47,6 +47,8 @@ def add_col():
     OHE_both_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]
     #Add speed zone into dataframe
     OHE_both_df["SPEED_ZONE"]=full_merged_df["SPEED_ZONE"]
+    #Fill the Na column with 40km/h
+    OHE_both_df["SPEED_ZONE"]=OHE_both_df["SPEED_ZONE"].fillna(40)
     
     
 """Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
