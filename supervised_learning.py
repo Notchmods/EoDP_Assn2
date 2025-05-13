@@ -7,6 +7,7 @@ Dependent variable- Vehicle damage and Average Injury level
 
 The Supervised learning algorithm that I've selected are
 K-Nearest Neighbor and Decision Tree
+
 """
 
 #Import all the required libraries
@@ -27,8 +28,7 @@ import pre as preprocessed
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
 pd.set_option('display.max_columns', None)
-
-full_merged_df=full_merged_df.head(10000)
+full_merged_df=full_merged_df.head(1000)    
 #Specify features to look for
 xOriginalCol=["ROAD_TYPE",
            "ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
@@ -36,12 +36,14 @@ yCol=["VEHICLE_DAMAGE_LEVEL","AVERAGE_INJ_LEVEL"] #dependent variable
 
 xCol=[]
 #Create a new DataFrame with One Hot Encoded values of the independent variables and the dependent variable
-OHE_both_df = pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
+OHE_both_df = []
                          
     
 def add_col():
     #Add vehicle damage level and one hot encoding for atmospheric
     #conditions into the dataframe.
+    global OHE_both_df
+    OHE_both_df=pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
     OHE_both_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]
     
 """Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
@@ -51,12 +53,22 @@ def both_analysis():
     #Merge both list together for the independent variable
     global xCol
     xCol=[col for col in OHE_both_df.columns]
+    
+    #Add the dependent variable into the dataframe
     OHE_both_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
+    OHE_both_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
+    #Analyse vehicle damage level first.
     x=OHE_both_df[xCol]
     y=OHE_both_df["VEHICLE_DAMAGE_LEVEL"]
     #Split into testing and training data for vehicle damage level
     subtitle="Predicted vehicle damage level vs actual vehicle damage level"
     organise_training_data(x,y,subtitle)
+
+    #Analyse Average Injury Level
+    y=OHE_both_df["AVERAGE_INJ_LEVEL"]
+    subtitle="Predicted vehicle damage level vs average injury level"
+    organise_training_data(x,y,subtitle)
+     
     
 #Predict the frequency of accidents with both KNN and Logistic regression models.
 def freq_accidents():
@@ -75,29 +87,19 @@ def freq_accidents():
     KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df)
     DecisionTree_Continuous(xTrain,xTest,yTrain,yTest)
 
-"""
-Machine learning part
-1.Organise separate training and testing data for training and testing the model.
-2. Store training data
-3.Fit the data and train it.
-4.Test the model on testing data
-5. Make predictions with it.
-"""
+"""Machine learning part"""
 
     
 #Organise a train test split for the data and run the 2 chosen Models
 def organise_training_data(x,y,subtitle):
-    xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.2,random_state=0)
+    xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.5,random_state=0)
     #Apply 2 supervised learning models to the data set
     ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle)
     DecisionTree(xTrain,xTest,yTrain,yTest,subtitle)
     
 
 def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
-    """
-    Create a KNN model using Manhattan metric 
-    Model will look for 5 of the most similar data points(nearest neighbors)
-    """
+    #Create a KNN model using Manhattan metric with k=5
     knn_model=KNeighborsClassifier(n_neighbors=5)
     
     #Fit the model with class weight and train it
