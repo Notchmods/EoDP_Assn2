@@ -282,6 +282,10 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     atmosphere = pd.read_csv(atomosphere_path, usecols=["ACCIDENT_NO", "ATMOSPH_COND_DESC"])
     # Remove Null value
     atmosphere = atmosphere[atmosphere["ATMOSPH_COND_DESC"] != "Not known"]
+    # Select Main  (as we have multiple ATMOSPH_COND for the same accident)
+    main_weather = (atmosphere.groupby("ACCIDENT_NO")["ATMOSPH_COND_DESC"]
+                    .apply(lambda x: sorted(set(x), key=lambda w: weather_priority_map.get(w))[0])
+                    .reset_index(name="MAIN_ATMOSPH_COND"))
     # One hot encoding (there are multiple ATMOSPH_COND for an accident)
     atmosphere = encoded_column(atmosphere, ["ATMOSPH_COND_DESC"])
     atmosphere = atmosphere.groupby("ACCIDENT_NO").max().reset_index()
@@ -292,6 +296,7 @@ def environment_df(vehicle_path, accident_path, atomosphere_path):
     atmosphere["CLEAR"] = atmosphere["ATMOSPH_COND_DESC_Clear"].astype(int)
     atmosphere = atmosphere.drop(columns=[col for col in atmosphere.columns if re.match(r"^ATMOSPH_COND_DESC_", col)])
 
+    environment = pd.merge(environment, main_weather, on = "ACCIDENT_NO")
     environment = pd.merge(environment, atmosphere, on = "ACCIDENT_NO")
     environment = environment.dropna()
     # For viewing what each column is
