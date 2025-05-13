@@ -216,7 +216,7 @@ def kmodes_clustering(df, features, k):
         kmodes_categorypercents[cat] = percents
 
     kmodes_categorypercents.index = rowlabels
-    kmodes_categorypercents.to_csv("kmeans_vehiclepercents.csv")
+    kmodes_categorypercents.to_csv("kmodes_vehiclepercents.csv")
 
     # Getting average injury and vehicle damage levels per cluster per vehicle category
     kmodes_averageinj = pd.DataFrame()
