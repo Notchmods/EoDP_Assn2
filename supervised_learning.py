@@ -7,7 +7,6 @@ Dependent variable- Vehicle damage and Average Injury level
 
 The Supervised learning algorithm that I've selected are
 K-Nearest Neighbor and Decision Tree
-
 """
 
 #Import all the required libraries
@@ -17,7 +16,7 @@ from sklearn.model_selection import train_test_split,cross_val_score
 from sklearn.preprocessing import OneHotEncoder,StandardScaler,LabelEncoder    
 from sklearn.metrics import confusion_matrix,classification_report,ConfusionMatrixDisplay
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
+from sklearn.tree import export_text,DecisionTreeClassifier,DecisionTreeRegressor,plot_tree
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import accuracy_score,mean_squared_error, r2_score
 import seaborn as sns
@@ -43,19 +42,7 @@ OHE_both_df = pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
 def add_col():
     #Add vehicle damage level and one hot encoding for atmospheric
     #conditions into the dataframe.
-    OHE_both_df[["ATMOSPH_COND_DESC_Clear",
-                "ATMOSPH_COND_DESC_Dust",
-                "ATMOSPH_COND_DESC_Fog",
-                "ATMOSPH_COND_DESC_Raining",
-                "ATMOSPH_COND_DESC_Smoke",
-                "ATMOSPH_COND_DESC_Snowing",
-                "ATMOSPH_COND_DESC_Strong winds"]]=full_merged_df[["ATMOSPH_COND_DESC_Clear",
-                "ATMOSPH_COND_DESC_Dust",
-                "ATMOSPH_COND_DESC_Fog",
-                "ATMOSPH_COND_DESC_Raining",
-                "ATMOSPH_COND_DESC_Smoke",
-                "ATMOSPH_COND_DESC_Snowing",
-                "ATMOSPH_COND_DESC_Strong winds"]]
+    OHE_both_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]
     
 """Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
 
@@ -88,10 +75,14 @@ def freq_accidents():
     KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df)
     DecisionTree_Continuous(xTrain,xTest,yTrain,yTest)
 
-    
-#def Logistic_Regression_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
-
-"""Machine learning part"""
+"""
+Machine learning part
+1.Organise separate training and testing data for training and testing the model.
+2. Store training data
+3.Fit the data and train it.
+4.Test the model on testing data
+5. Make predictions with it.
+"""
 
     
 #Organise a train test split for the data and run the 2 chosen Models
@@ -103,7 +94,10 @@ def organise_training_data(x,y,subtitle):
     
 
 def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
-    #Create a KNN model using Manhattan metric with k=5
+    """
+    Create a KNN model using Manhattan metric 
+    Model will look for 5 of the most similar data points(nearest neighbors)
+    """
     knn_model=KNeighborsClassifier(n_neighbors=5)
     
     #Fit the model with class weight and train it
@@ -133,22 +127,12 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
 
     print("Mean Squared Error:", mean_squared_error(yTest, prediction))
     print("R² Score:", r2_score(yTest, prediction))
+    decoded = accident_freq_df.iloc[xTest.index].copy()
+    decoded['Actual_ACCIDENT_COUNT'] = yTest.values
+    decoded['Predicted_ACCIDENT_COUNT'] = prediction
 
-    # Reset index so we can merge categories with predictions
-    X_test_with_index = xTest.copy()
-    X_test_with_index['Predicted_ACCIDENT_COUNT'] = prediction
-    X_test_with_index['Actual_ACCIDENT_COUNT'] = yTest.values
-
-    # Merge back with original categorical data
-    decoded_test = pd.concat([X_test_with_index.reset_index(drop=True),
-                              accident_freq_df.loc[xTest.index].reset_index(drop=True)],
-                             axis=1)
-
-    # Drop duplicate accident count if needed
-    decoded_test = decoded_test.drop(columns='ACCIDENT_COUNT')
-
-    # Show
-    print(decoded_test)
+    print("\nSample prediction breakdown:")
+    print(decoded)
 
 def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     #Set decision tree depth to 5
@@ -162,6 +146,20 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     print("Prediction: ",prediction)
     print("Accuracy:", accuracy_score(yTest, prediction))
     print(classification_report(yTest,prediction))
+    ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,subtitle)
+    plot_tree(tree,
+          feature_names=xTest.columns,     # show your actual feature names
+          filled=True,                 # color-code nodes
+          rounded=True,                # round corners of nodes
+          fontsize=5)                 # size of the text inside the boxes
+    tree_rules = export_text(tree, feature_names=list(xTest.columns))
+    print(tree_rules)
+    plt.title("Decision Tree - Accident Prediction", fontsize=16)
+    plt.show()
+        
+    print(classification_report(yTest,prediction))
+      
+    
    
 def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest):
     #Set decision tree depth to 5
