@@ -187,7 +187,7 @@ def aggcls_clustering(df, features, n):
 def kmodes_clustering(df, features, k):
     # KModes Clustering analysis
 
-    kmodes = KMeans(n_clusters=k, random_state=20250523).fit(df[features])
+    kmodes = KModes(n_clusters=k, random_state=20250523).fit(df[features])
     kmodes_df = df.copy()
     kmodes_df['cluster'] = kmodes.labels_
     kmodes_df.to_csv("kmodes_df.csv")
