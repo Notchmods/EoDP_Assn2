@@ -150,7 +150,7 @@ def aggcls_clustering(df, features, n):
 
     rowlabels = ["Aggregate"]
     aggcls_df['cluster'] = aggcls.labels_
-    aggcls_df.to_csv["aggcls_df"]
+    aggcls_df.to_csv("aggcls_df.csv")
 
     aggcls_agg = aggcls_df[['cluster','AVERAGE_INJ_LEVEL','VEHICLE_DAMAGE_LEVEL']].groupby(['cluster']).mean()
     aggcls_agg['count'] = aggcls_df[['cluster','ACCIDENT_NO']].groupby(['cluster']).count()
