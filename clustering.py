@@ -267,4 +267,4 @@ def plot_dendrogram(model, **kwargs):
 
 # kmeans_clustering(everything_df, 3)
 # aggcls_clustering(aggcls_sample_df, featurevars1, 5)
-# kmodes_clustering(everything_df, features2, 4)
+# kmodes_clustering(everything_df, featurevars2, 4)
