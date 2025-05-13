@@ -261,7 +261,7 @@ def plot_dendrogram(model, **kwargs):
     dendrogram(linkage_matrix, **kwargs)
 
 # kmeans_elbow(everything_df, featurevars1, 3)
-# kmodes_elbow(everything_df, featurevars2, 5)
+# kmodes_elbow(everything_df, featurevars2, 4)
 
 # aggcls_dendrogram(aggcls_sample_df, featurevars1)
 
