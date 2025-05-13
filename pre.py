@@ -492,6 +492,9 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     outcome = outcome_df(vehicle_path, person_path, accident_path)
     # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
+    #Add speed zones to table.csv
+    speed_zones=pd.read_csv(accident_path)
+    everything["SPEED_ZONE"]=speed_zones["SPEED_ZONE"]
     # For viewing
     everything.to_csv("table.csv", index=False)
     return everything
