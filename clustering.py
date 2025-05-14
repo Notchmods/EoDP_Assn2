@@ -95,6 +95,7 @@ def aggcls_dendrogram(df, features):
     plt.xlabel("Number of points in node (or index of point if no parenthesis).")
     plt.xticks(rotation=90)
 
+    plt.tight_layout()
     plt.savefig("hierarchical_clustering_dendrogram.png")
     plt.close()
 
