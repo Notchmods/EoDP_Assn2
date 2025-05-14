@@ -28,10 +28,10 @@ import pre as preprocessed
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
 pd.set_option('display.max_columns', None)
-#full_merged_df=full_merged_df.head(1000)    
+full_merged_df=full_merged_df.head(1000)    
 #Specify features to look for
 xOriginalCol=["ROAD_TYPE",
-           "ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
+           "MAIN_ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
 yCol=["VEHICLE_DAMAGE_LEVEL","AVERAGE_INJ_LEVEL"] #dependent variable
 
 xCol=[]
@@ -43,12 +43,11 @@ def add_col():
     #Add vehicle damage level and one hot encoding for atmospheric
     #conditions into the dataframe.
     global OHE_both_df
-    OHE_both_df=pd.get_dummies(full_merged_df[['ROAD_TYPE','VEHICLE_CATEGORY']])
-    OHE_both_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["CLEAR","FOG/SMOKE/DUST","RAIN/SNOW"]]
-    #Add speed zone into dataframe
-    OHE_both_df["SPEED_ZONE"]=full_merged_df["SPEED_ZONE"]
-    #Fill the Na column with 40km/h
-    OHE_both_df["SPEED_ZONE"]=OHE_both_df["SPEED_ZONE"].fillna(40)
+    OHE_both_df = full_merged_df[["ACCIDENT_NO", "ROAD_TYPE", "VEHICLE_CATEGORY","ACCIDENT_TYPE"]].copy()
+    OHE_both_df=pd.get_dummies(OHE_both_df,columns=["ROAD_TYPE","VEHICLE_CATEGORY","ACCIDENT_TYPE"])
+    OHE_both_df[["FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["FOG/SMOKE/DUST","RAIN/SNOW"]]
+        
+    
     
     
 """Analyse Vehicle and environmental characteristics effects on vehicle damage and average injury level separately"""
@@ -56,12 +55,13 @@ def add_col():
 #Train and predict vehicle damage based on vehicle and environmental factor together 
 def both_analysis():
     #Merge both list together for the independent variable
-    global xCol
-    xCol=[col for col in OHE_both_df.columns]
     
+    global xCol,OHE_both_df
+    xCol=[col for col in OHE_both_df.columns if col!="ACCIDENT_NO"]
     #Add the dependent variable into the dataframe
     OHE_both_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
     OHE_both_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
+    
     #Analyse vehicle damage level first.
     x=OHE_both_df[xCol]
     y=OHE_both_df["VEHICLE_DAMAGE_LEVEL"]
@@ -87,7 +87,7 @@ def freq_accidents():
     ]).size().reset_index(name='ACCIDENT_COUNT')
        
     #Everything in the x is independent variable except for Accident count
-    x = pd.get_dummies(accident_freq_df.drop(columns='ACCIDENT_COUNT'))
+    x = pd.get_dummies(accident_freq_df.drop(columns=['ACCIDENT_COUNT']))
     #Accident count is the dependent variable
     y = accident_freq_df['ACCIDENT_COUNT']
     #Organise train test split for data
@@ -100,7 +100,7 @@ def freq_accidents():
     
 #Organise a train test split for the data and run the 2 chosen Models
 def organise_training_data(x,y,subtitle):
-    xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.5,random_state=0)
+    xTrain,xTest,yTrain,yTest= train_test_split(x,round(y),test_size=0.1,random_state=0)
     #Apply 2 supervised learning models to the data set
     ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle)
     DecisionTree(xTrain,xTest,yTrain,yTest,subtitle)
@@ -128,7 +128,7 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
     X_train_scaled = scaler.fit_transform(xTrain)
     X_test_scaled = scaler.transform(xTest)
     #Use KNN Regressor as the accident count is a continuous value rather than categorical
-    knn_reg = KNeighborsRegressor(n_neighbors=5, weights='distance', metric='manhattan')
+    knn_reg = KNeighborsRegressor(n_neighbors=10, weights='distance')
     #Train the data
     knn_reg.fit(X_train_scaled, yTrain)
     #Testing the model by predicting the test data set.
