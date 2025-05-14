@@ -19,7 +19,6 @@ aggcls_sample_df = everything_df.sample(n = 20000, random_state=20250523)
 targetvars = ['VEHICLE_DAMAGE_LEVEL','AVERAGE_INJ_LEVEL']
 featurevars1 = ['NO_OF_WHEELS','NO_OF_CYLINDERS','SEATING_CAPACITY','TARE_WEIGHT','TOTAL_NO_OCCUPANTS']
 featurevars2 = ['LIGHT_LEVEL', 'SPEED_ZONE', 'MAIN_ATMOSPH_COND', 'ROAD_SURFACE_TYPE_DESC']
-environmentvars = ['MAIN_ATMOSPH_COND','SPEED_ZONE','ROAD_SURFACE_TYPE_DESC']
 
 def normalize(df, features):
     # Takes a dataframe and an array of column names and returns a min max normalized dataframe of those columns
@@ -131,7 +130,7 @@ def kmeans_clustering(df, features, k):
 
     # Getting average injury and vehicle damage levels per cluster per environmental condition
     for i in targetvars:
-        for j in environmentvars:
+        for j in featurevars2:
             df = pd.DataFrame()
             for cat in kmeans_df[j].unique():
                 col = [kmeans_df[kmeans_df[j] == cat][i].mean()]
@@ -175,7 +174,7 @@ def aggcls_clustering(df, features, n):
 
     # Getting average injury and vehicle damage levels per cluster per environmental condition
     for i in targetvars:
-        for j in environmentvars:
+        for j in featurevars2:
             df = pd.DataFrame()
             for cat in aggcls_df[j].unique():
                 col = [aggcls_df[aggcls_df[j] == cat][i].mean()]
