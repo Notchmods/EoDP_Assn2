@@ -12,6 +12,7 @@ p_path = "./person.csv"
 atmo_path = "./atmospheric_cond.csv"
 
 everything_df = pre_cluster.everything_df(v_path, a_path, atmo_path, p_path)
+# everything_df = pd.read_csv("./table.csv")
 
 # Using a sample to perform agglomerative clustering
 aggcls_sample_df = everything_df.sample(n = 20000, random_state=20250523)
@@ -19,6 +20,7 @@ aggcls_sample_df = everything_df.sample(n = 20000, random_state=20250523)
 targetvars = ['VEHICLE_DAMAGE_LEVEL','AVERAGE_INJ_LEVEL']
 featurevars1 = ['NO_OF_WHEELS','NO_OF_CYLINDERS','SEATING_CAPACITY','TARE_WEIGHT','TOTAL_NO_OCCUPANTS']
 featurevars2 = ['LIGHT_LEVEL', 'SPEED_ZONE', 'MAIN_ATMOSPH_COND', 'ROAD_SURFACE_TYPE_DESC']
+environmentvars = ['MAIN_ATMOSPH_COND','SPEED_ZONE','ROAD_SURFACE_TYPE_DESC']
 
 def normalize(df, features):
     # Takes a dataframe and an array of column names and returns a min max normalized dataframe of those columns
@@ -93,8 +95,8 @@ def aggcls_dendrogram(df, features):
     plot_dendrogram(model, truncate_mode="level", p=3)
     plt.xlabel("Number of points in node (or index of point if no parenthesis).")
     plt.xticks(rotation=90)
-
     plt.tight_layout()
+
     plt.savefig("hierarchical_clustering_dendrogram.png")
     plt.close()
 
@@ -132,13 +134,27 @@ def kmeans_clustering(df, features, k):
     for i in targetvars:
         for j in featurevars2:
             df = pd.DataFrame()
-            for cat in kmeans_df[j].unique():
+            for cat in np.sort(kmeans_df[j].unique()):
                 col = [kmeans_df[kmeans_df[j] == cat][i].mean()]
                 for cluster in kmeans_clusters:
                     col.append(cluster[cluster[j] == cat][i].mean())
                 df[cat] = col
             df.index = rowlabels
             df.to_csv("kmeans_"+i+"_by_"+j+".csv")
+
+    # Getting most frequent accident type per cluster per environmental condition
+    for j in environmentvars:
+        df = pd.DataFrame()
+        for cat in np.sort(kmeans_df[j].unique()):
+            col = [kmeans_df[kmeans_df[j] == cat]['ACCIDENT_TYPE'].mode().iloc[0]]
+            for cluster in kmeans_clusters:
+                if sum(cluster[j] == cat) > 0: # Since some clusters have 0 accidents in certain environmental conditions
+                    col.append(cluster[cluster[j] == cat]['ACCIDENT_TYPE'].mode().iloc[0])
+                else:
+                    col.append("N/A")
+            df[cat] = col
+        df.index = rowlabels
+        df.to_csv("kmeans_ACCIDENT_TYPE_by_"+j+".csv")
 
 def aggcls_clustering(df, features, n):
     # Agglomerative Clustering analysis
@@ -176,7 +192,7 @@ def aggcls_clustering(df, features, n):
     for i in targetvars:
         for j in featurevars2:
             df = pd.DataFrame()
-            for cat in aggcls_df[j].unique():
+            for cat in np.sort(aggcls_df[j].unique()):
                 col = [aggcls_df[aggcls_df[j] == cat][i].mean()]
                 for cluster in aggcls_clusters:
                     col.append(cluster[cluster[j] == cat][i].mean())
@@ -184,9 +200,23 @@ def aggcls_clustering(df, features, n):
             df.index = rowlabels
             df.to_csv("aggcls_"+i+"_by_"+j+".csv")
 
+    # Getting most frequent accident type per cluster per environmental condition
+    for j in environmentvars:
+        df = pd.DataFrame()
+        for cat in np.sort(aggcls_df[j].unique()):
+            col = [aggcls_df[aggcls_df[j] == cat]['ACCIDENT_TYPE'].mode().iloc[0]]
+            for cluster in aggcls_clusters:
+                if sum(cluster[j] == cat) > 0: # Since some clusters have 0 accidents in certain environmental conditions
+                    col.append(cluster[cluster[j] == cat]['ACCIDENT_TYPE'].mode().iloc[0])
+                else:
+                    col.append("N/A")
+            df[cat] = col
+        df.index = rowlabels
+        df.to_csv("aggcls_ACCIDENT_TYPE_by_"+j+".csv")
+
 def kmodes_clustering(df, features, k):
     # KModes Clustering analysis
-
+    
     kmodes = KModes(n_clusters=k, random_state=20250523).fit(df[features])
     kmodes_df = df.copy()
     kmodes_df['cluster'] = kmodes.labels_
