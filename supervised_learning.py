@@ -27,7 +27,7 @@ import pre as preprocessed
 #Import the pre-processed data from the pre.py file
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
-full_merged_df=full_merged_df.head(100000)
+
 pd.set_option('display.max_columns', None)
 #Specify features to look for
 xOriginalCol=["ROAD_TYPE",
@@ -83,7 +83,8 @@ def freq_accidents():
     #Count accident frequency by the attributes
     accident_freq_df = full_merged_df.groupby([
     'ROAD_TYPE', 
-    'VEHICLE_CATEGORY'
+    'VEHICLE_CATEGORY',
+    'MAIN_ATMOSPH_COND'
     ]).size().reset_index(name='ACCIDENT_COUNT')
        
     #Everything in the x is independent variable except for Accident count
@@ -107,6 +108,7 @@ def organise_training_data(x,y,subtitle):
     
 
 def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
+    """
     # Define the range of k values to test
     k_values = range(1, 31)
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -124,7 +126,7 @@ def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
     # Display cross-validation scores for each k
     for k, score in zip(k_values, cv_scores):
         print(f"K: {k}, Cross-validation score: {score}")
-
+    """
     knn_model=KNeighborsClassifier(n_neighbors=24)
     #Fit the model with class weight and train it
     knn_model.fit(xTrain,yTrain)
@@ -157,13 +159,13 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
 
     #Create table to display prediction
     decoded = accident_freq_df.iloc[xTest.index].copy()
-    decoded['Actual_ACCIDENT_COUNT'] = yTest.values
     decoded['Predicted_ACCIDENT_COUNT'] = prediction
 
-    print("\nSample prediction breakdown:")
+    print("\nSample prediction breakdown KNN:")
     print(decoded)
 
 def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
+    """
     # Store all CV scores in a list
     cv_scores = []
     depth_range = range(1, 31)
@@ -179,6 +181,7 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     # Display cross-validation scores for each depth
     best_depth = depth_range[cv_scores.index(max(cv_scores))]
     print(f"\n Best Depth = {best_depth} with CV Accuracy = {max(cv_scores):.4f}")
+"""
     #Set decision tree depth to 7
     tree= DecisionTreeClassifier(max_depth=4,random_state=42)
     #Train the data
@@ -222,9 +225,10 @@ def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest,accident_freq_df):
     print("R² Score:", r2_score(yTest, prediction))
     #Create table to display prediction
     decoded = accident_freq_df.iloc[xTest.index].copy()
-    decoded['Actual_ACCIDENT_COUNT'] = yTest.values
     decoded['Predicted_ACCIDENT_COUNT'] = prediction
-
+    print("\nSample prediction breakdown Decision Tree:")
+    print(decoded)
+    
 
     
 #Evaluate the model with confusion matrix
