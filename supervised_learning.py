@@ -13,7 +13,7 @@ K-Nearest Neighbor and Decision Tree
 #Import all the required libraries
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split,cross_val_score
+from sklearn.model_selection import train_test_split,cross_val_score,KFold
 from sklearn.preprocessing import OneHotEncoder,StandardScaler,LabelEncoder    
 from sklearn.metrics import confusion_matrix,classification_report,ConfusionMatrixDisplay
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
@@ -27,8 +27,8 @@ import pre as preprocessed
 #Import the pre-processed data from the pre.py file
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
+full_merged_df=full_merged_df.head(100000)
 pd.set_option('display.max_columns', None)
-full_merged_df=full_merged_df.head(1000)    
 #Specify features to look for
 xOriginalCol=["ROAD_TYPE",
            "MAIN_ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
@@ -68,7 +68,7 @@ def both_analysis():
     #Split into testing and training data for vehicle damage level
     subtitle="Predicted vehicle damage level vs actual vehicle damage level"
     organise_training_data(x,y,subtitle)
-
+    
     #Analyse Average Injury Level
     y=OHE_both_df["AVERAGE_INJ_LEVEL"]
     scaler = StandardScaler()
@@ -107,14 +107,31 @@ def organise_training_data(x,y,subtitle):
     
 
 def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
-    #Create a KNN model using Manhattan metric with k=5
-    knn_model=KNeighborsClassifier(n_neighbors=5)
-    
+    # Define the range of k values to test
+    k_values = range(1, 31)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    # Store the cross-validation scores for each k
+    cv_scores = []
+
+    for k in k_values:
+        #Test different k's for KNN
+        knn_model=KNeighborsClassifier(n_neighbors=k)
+        scores = cross_val_score(knn_model, xTrain, yTrain, cv=kf, scoring='accuracy').mean()
+        
+    best_k = k_values[np.argmax(scores)]
+    print(f"The optimal number of neighbors (k) is: {best_k}")
+
+    # Display cross-validation scores for each k
+    for k, score in zip(k_values, cv_scores):
+        print(f"K: {k}, Cross-validation score: {score}")
+
+    knn_model=KNeighborsClassifier(n_neighbors=24)
     #Fit the model with class weight and train it
     knn_model.fit(xTrain,yTrain)
     #Testing the model by predicting the test data set.
-    prediction= knn_model.predict(xTest)    
+    prediction= knn_model.predict(xTest)        
 
+    
     #Predict and evaluate
     print("KNN: ")
     print("Prediction: ",prediction)
@@ -128,13 +145,13 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
     X_train_scaled = scaler.fit_transform(xTrain)
     X_test_scaled = scaler.transform(xTest)
     #Use KNN Regressor as the accident count is a continuous value rather than categorical
-    knn_reg = KNeighborsRegressor(n_neighbors=10, weights='distance')
+    knn_reg = KNeighborsRegressor(n_neighbors=24, weights='distance')
     #Train the data
     knn_reg.fit(X_train_scaled, yTrain)
     #Testing the model by predicting the test data set.
     prediction = knn_reg.predict(X_test_scaled)
     print(prediction)
-
+        
     print("Mean Squared Error:", mean_squared_error(yTest, prediction))
     print("R² Score:", r2_score(yTest, prediction))
 
@@ -147,8 +164,23 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
     print(decoded)
 
 def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
-    #Set decision tree depth to 5
-    tree= DecisionTreeClassifier(max_depth=5,class_weight='balanced',random_state=42)
+    # Store all CV scores in a list
+    cv_scores = []
+    depth_range = range(1, 31)
+    #Display cross-validation scores for each depth
+
+    for depth in range(1, 31):  
+        tree = DecisionTreeClassifier(max_depth=depth,random_state=42)  
+        scores = cross_val_score(tree, xTrain, yTrain, cv=5, scoring='accuracy').mean()
+        cv_scores.append(scores)
+        print(f"Depth {depth}: CV Accuracy = {scores:.4f}")
+
+
+    # Display cross-validation scores for each depth
+    best_depth = depth_range[cv_scores.index(max(cv_scores))]
+    print(f"\n Best Depth = {best_depth} with CV Accuracy = {max(cv_scores):.4f}")
+    #Set decision tree depth to 7
+    tree= DecisionTreeClassifier(max_depth=4,random_state=42)
     #Train the data
     tree.fit(xTrain,yTrain)
     #Testing the model by predicting the test data set.
@@ -169,14 +201,15 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     print(tree_rules)
     plt.title("Decision Tree - Accident Prediction", fontsize=16)
     plt.show()
+    
         
     print(classification_report(yTest,prediction))
       
     
    
 def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest,accident_freq_df):
-    #Set decision tree depth to 5
-    tree= DecisionTreeRegressor(max_depth=5,random_state=42)
+    #Set decision tree depth to 7
+    tree= DecisionTreeRegressor(max_depth=20,random_state=42)
     #Train the data
     tree.fit(xTrain,yTrain)
     #Testing the model by predicting the test data set.
