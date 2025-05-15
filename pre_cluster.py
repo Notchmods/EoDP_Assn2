@@ -60,6 +60,7 @@ A few possible problems we could solve:
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import re
+import numpy as np
 
 reordered_INJ_dict = {
     1: 3,
@@ -371,9 +372,19 @@ def resolve_missing_attribute(df, target_col):
     def fill_func(row):
         if pd.isna(row[target_col]) and row["VEHICLE_TYPE_DESC"] in avg_dict:
             return avg_dict[row["VEHICLE_TYPE_DESC"]]
-        return row[target_col]
+        return int(row[target_col])
 
     df[target_col] = df.apply(fill_func, axis=1)
+    return df
+
+def replace_outliers(df):
+    Q1 = df["TARE_WEIGHT"].quantile(0.25)
+    Q3 = df["TARE_WEIGHT"].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+
+    df.loc[(df["TARE_WEIGHT"] < lower) | (df["TARE_WEIGHT"] > upper), "TARE_WEIGHT"] = np.nan
     return df
 
 def vehicle_df(vehicle_path):
@@ -413,12 +424,13 @@ def vehicle_df(vehicle_path):
     vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "NO_OF_WHEELS"] = 2
     vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "NO_OF_CYLINDERS"] = 0
     vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "SEATING_CAPACITY"] = 1
+    vehicle["TARE_WEIGHT"] = vehicle["TARE_WEIGHT"].replace(0, np.nan)
+    vehicle = vehicle.groupby("VEHICLE_TYPE_DESC", group_keys=False).apply(replace_outliers)
     resolve_missing_attribute(vehicle, "NO_OF_WHEELS")
     resolve_missing_attribute(vehicle, "NO_OF_CYLINDERS")
     resolve_missing_attribute(vehicle, "SEATING_CAPACITY")
     resolve_missing_attribute(vehicle, "TARE_WEIGHT")
     resolve_missing_attribute(vehicle, "TOTAL_NO_OCCUPANTS")
-
     # Predict unknown type as much as we can
     vehicle["VEHICLE_TYPE_DESC"] = vehicle.apply(lambda row: resolve_unknown_type(row, vehicle), axis=1)
     vehicle = vehicle[~vehicle["VEHICLE_TYPE_DESC"].isin(unknown_type)]
@@ -526,11 +538,11 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
     # For viewing
-    everything.to_csv("table.csv", index=False)
+    everything.to_csv("table_c.csv", index=False)
     return everything
 
 # For testing:
 # outcome_df(v_path, a_path, p_path)
 # vehicle_df(v_path)
 # environment_df(v_path, a_path, atmo_path)
-# everything_df(v_path, a_path, atmo_path, p_path)
+everything_df(v_path, a_path, atmo_path, p_path)
