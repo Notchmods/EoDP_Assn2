@@ -12,7 +12,7 @@ p_path = "./person.csv"
 atmo_path = "./atmospheric_cond.csv"
 
 everything_df = pre_cluster.everything_df(v_path, a_path, atmo_path, p_path)
-# everything_df = pd.read_csv("./table.csv")
+# everything_df = pd.read_csv("./table_c.csv")
 
 # Using a sample to perform agglomerative clustering
 aggcls_sample_df = everything_df.sample(n = 20000, random_state=20250523)
@@ -65,8 +65,6 @@ def kmodes_elbow(df, features, elbowpoint):
         kmode.fit(df[features])
         distortions.append(kmode.cost_)
     # Setting random state for consistency
-
-    # this took 4m 25.4s to run at n_init=2
 
     plt.plot(k_range,distortions,'bo-')
     plt.title('Elbow Method')
@@ -158,6 +156,7 @@ def kmeans_clustering(df, features, k):
 
 def aggcls_clustering(df, features, n):
     # Agglomerative Clustering analysis
+    # Not included in the report because results are very similar to K-Means and there was constraints with page count
 
     normalized = normalize(df, features)
 
@@ -290,11 +289,11 @@ def plot_dendrogram(model, **kwargs):
     # Plot the corresponding dendrogram
     dendrogram(linkage_matrix, **kwargs)
 
-# kmeans_elbow(everything_df, featurevars1, 3)
-# kmodes_elbow(everything_df, featurevars2, 5)
+kmeans_elbow(everything_df, featurevars1, 4)
+kmodes_elbow(everything_df, featurevars2, 5)
 
-# aggcls_dendrogram(aggcls_sample_df, featurevars1)
+aggcls_dendrogram(aggcls_sample_df, featurevars1)
 
-# kmeans_clustering(everything_df, featurevars1, 3)
-# aggcls_clustering(aggcls_sample_df, featurevars1, 5)
-# kmodes_clustering(everything_df, featurevars2, 5)
+kmeans_clustering(everything_df, featurevars1, 4)
+aggcls_clustering(aggcls_sample_df, featurevars1, 5)
+kmodes_clustering(everything_df, featurevars2, 5)
