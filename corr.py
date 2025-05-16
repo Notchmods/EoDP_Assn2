@@ -5,12 +5,11 @@ from sklearn.preprocessing import OrdinalEncoder
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-""" 
-Research Question:  What are the differences in traffic accident outcomes among various 
-vehicle types under different road and environmental conditions? 
-
+"""
+Research Question:  What are the differences in injury level among various vehicle types under different road and 
+                    environmental conditions?
 Correlation Analysis: Identify which factors("ROAD_SURFACE_TYPE_DESC", "SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", 
-"FOG/SMOKE/DUST") are most associated with severe accidents. 
+                      "FOG/SMOKE/DUST") are most associated with severe accidents. 
 """
 
 v_path = "vehicle.csv"
@@ -76,4 +75,5 @@ make_barGraph(ailMI,'AVERAGE_INJ_LEVEL', 'AILMutInfo.png')
 
 heatmap(everything, "SPEED_ZONE", "AVERAGE_INJ_LEVEL", 'speedAILheatmap.png')
 heatmap(everything, "LIGHT_LEVEL", "AVERAGE_INJ_LEVEL", 'lightAILheatmap.png')
+
 
