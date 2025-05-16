@@ -29,42 +29,6 @@ vehicle_types = [
     "Public Transport"
 ]
 
-#call pearson_corr(everything, ["SPEED_ZONE", "AVERAGE_INJ_LEVEL"])
-def pearson_corr(df, variables):
-    if len(variables) != 2:
-        print("Only 2 variables")
-        return
-    
-    corr_df = pd.DataFrame(columns=["VEHICLE_CATEGORY", "PEARSON_CORR"])
-    for v in vehicle_types:
-        new_df = df[(df["VEHICLE_CATEGORY"] == v)]
-        num_df = new_df[variables]
-        corrMatrix = num_df.corr()
-        corrValues = corrMatrix[variables[0]][corrMatrix[variables[0]] != 1]
-        temp_df = pd.DataFrame({
-            "VEHICLE_CATEGORY": f'{v}',
-            "PEARSON_CORR": corrValues
-        })
-        corr_df = pd.concat([corr_df, temp_df], ignore_index=True)
-    print(f"Pearson Correlation between {variables[0]} and {variables[1]}")
-    print(corr_df)
-    return
-
-def make_lineGraph(df, independent, filename):
-    grouped = (df.groupby(["VEHICLE_CATEGORY", "SPEED_ZONE"])
-    .agg(mean_injury=(independent, "mean"), count=(independent, "count"))
-    .reset_index())
-    
-    filtered = grouped[grouped["count"] >= 30]
-    plt.figure(figsize=(10, 6))
-    sns.lineplot(data=filtered, x="SPEED_ZONE", y="mean_injury", hue="VEHICLE_CATEGORY")
-    plt.title(f"Mean {independent} by SPEED_ZONE and Vehicle Type (Filtered: count ≥ 30)")
-    plt.ylabel(f"Mean {independent}")
-    plt.xlabel("SPEED_ZONE")
-    plt.tight_layout()
-    plt.savefig(filename)
-    return
-
 def mutual_info(df, dependent, independent):
     mi_df = pd.DataFrame(columns=["VEHICLE_CATEGORY", "CONDITIONS", "MUTUAL_INFORMATION"])
     for v in vehicle_types:
@@ -91,15 +55,28 @@ def make_barGraph(df, independent, filename):
     plt.savefig(filename)
     return
 
+def heatmap(df, dependent, independent, filename):
+    new_df = df.groupby([dependent, "VEHICLE_CATEGORY"])[independent].agg(["mean"]).reset_index()
+    new_df = new_df.fillna(0)
+    new_df = new_df.pivot(index=dependent, columns='VEHICLE_CATEGORY', values='mean')
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(new_df, cmap='RdBu', annot=True, fmt=".5f")
+    plt.title(f'Heatmap of {independent} and {dependent}')
+    plt.ylabel(f"{dependent}")
+    plt.xlabel("VEHICLE_CATEGORY")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(filename)
+    return
 
-ailMI = mutual_info(everything, ["LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST", "CLEAR"], "AVERAGE_INJ_LEVEL")
-vdlMI = mutual_info(everything, ["LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST", "CLEAR"], "VEHICLE_DAMAGE_LEVEL")
+
+ailMI = mutual_info(everything, ["SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST"], "AVERAGE_INJ_LEVEL")
+vdlMI = mutual_info(everything, ["SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST"], "VEHICLE_DAMAGE_LEVEL")
 make_barGraph(ailMI,'AVERAGE_INJ_LEVEL', 'AILMutInfo.png')
 make_barGraph(vdlMI, 'VEHICLE_DMG_LEVEL', 'VDLMutInfo.png')
 
-
-pearson_corr(everything, ["SPEED_ZONE", "AVERAGE_INJ_LEVEL"])
-pearson_corr(everything, ["SPEED_ZONE", "VEHICLE_DAMAGE_LEVEL"])
-make_lineGraph(everything, "VEHICLE_DAMAGE_LEVEL", "VDLPearson.png")
-make_lineGraph(everything, "AVERAGE_INJ_LEVEL", "AILPearson.png")
+heatmap(everything, "SPEED_ZONE", "AVERAGE_INJ_LEVEL", 'speedAILheatmap.png')
+heatmap(everything, "ROAD_TYPE", "AVERAGE_INJ_LEVEL", 'roadAILheatmap.png')
+heatmap(everything, "SPEED_ZONE", "VEHICLE_DAMAGE_LEVEL", 'speedVDLheatmap.png')
+heatmap(everything, "ROAD_TYPE", "VEHICLE_DAMAGE_LEVEL", 'roadVDLheatmap.png')
 
