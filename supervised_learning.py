@@ -41,6 +41,7 @@ def add_col():
     OHE_both_df = full_merged_df[["ACCIDENT_NO", "ROAD_TYPE", "VEHICLE_CATEGORY","ACCIDENT_TYPE"]].copy()
     OHE_both_df=pd.get_dummies(OHE_both_df,columns=["ROAD_TYPE","VEHICLE_CATEGORY","ACCIDENT_TYPE"])
     OHE_both_df[["FOG/SMOKE/DUST","RAIN/SNOW"]]=full_merged_df[["FOG/SMOKE/DUST","RAIN/SNOW"]]
+    OHE_both_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
         
     
     
@@ -54,13 +55,11 @@ def both_analysis():
     global xCol,OHE_both_df
     xCol=[col for col in OHE_both_df.columns if col!="ACCIDENT_NO"]
     #Add the dependent variable into the dataframe
+    x=OHE_both_df[xCol]
     y=OHE_both_df["AVERAGE_INJ_LEVEL"]
-    #Scale data to improve performance, transforming numerical faetuers into scale
-    scaler = StandardScaler()
-    x_scaled = scaler.fit_transform(x)
-    x_scaled = pd.DataFrame(x_scaled)
+    
     subtitle="Predicted vehicle damage level vs average injury level"
-    organise_training_data(x_scaled,y,subtitle)
+    organise_training_data(x,y,subtitle)
      
     
 #Predict the frequency of accidents with both KNN and Logistic regression models.
