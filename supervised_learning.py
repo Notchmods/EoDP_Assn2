@@ -28,12 +28,7 @@ import pre as preprocessed
 full_merged_df=preprocessed.everything_df(
     "vehicle.csv", "accident.csv","atmospheric_cond.csv", "person.csv")
 
-pd.set_option('display.max_columns', None)
-#Specify features to look for
-xOriginalCol=["ROAD_TYPE",
-           "MAIN_ATMOSPH_COND","VEHICLE_CATEGORY"] #independent variable
-yCol=["VEHICLE_DAMAGE_LEVEL","AVERAGE_INJ_LEVEL"] #dependent variable
-
+#Contain One Hot Encoded column names for extracting dataframe.
 xCol=[]
 #Create a new DataFrame with One Hot Encoded values of the independent variables and the dependent variable
 OHE_both_df = []
@@ -59,18 +54,8 @@ def both_analysis():
     global xCol,OHE_both_df
     xCol=[col for col in OHE_both_df.columns if col!="ACCIDENT_NO"]
     #Add the dependent variable into the dataframe
-    OHE_both_df["VEHICLE_DAMAGE_LEVEL"]=full_merged_df["VEHICLE_DAMAGE_LEVEL"]
-    OHE_both_df["AVERAGE_INJ_LEVEL"]=full_merged_df["AVERAGE_INJ_LEVEL"]
-    
-    #Analyse vehicle damage level first.
-    x=OHE_both_df[xCol]
-    y=OHE_both_df["VEHICLE_DAMAGE_LEVEL"]
-    #Split into testing and training data for vehicle damage level
-    subtitle="Predicted vehicle damage level vs actual vehicle damage level"
-    organise_training_data(x,y,subtitle)
-    
-    #Analyse Average Injury Level
     y=OHE_both_df["AVERAGE_INJ_LEVEL"]
+    #Scale data to improve performance, transforming numerical faetuers into scale
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(x)
     x_scaled = pd.DataFrame(x_scaled)
@@ -108,6 +93,7 @@ def organise_training_data(x,y,subtitle):
     
 
 def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
+    #Cross validation
     """
     # Define the range of k values to test
     k_values = range(1, 31)
@@ -127,6 +113,8 @@ def ApplyKNN(xTrain,xTest,yTrain,yTest,subtitle):
     for k, score in zip(k_values, cv_scores):
         print(f"K: {k}, Cross-validation score: {score}")
     """
+
+    #Training data
     knn_model=KNeighborsClassifier(n_neighbors=24)
     #Fit the model with class weight and train it
     knn_model.fit(xTrain,yTrain)
@@ -165,6 +153,7 @@ def KNN_Continuous(x,y,xTrain,xTest,yTrain,yTest,accident_freq_df):
     print(decoded)
 
 def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
+    #Cross validation
     """
     # Store all CV scores in a list
     cv_scores = []
@@ -182,7 +171,8 @@ def DecisionTree(xTrain,xTest,yTrain,yTest,subtitle):
     best_depth = depth_range[cv_scores.index(max(cv_scores))]
     print(f"\n Best Depth = {best_depth} with CV Accuracy = {max(cv_scores):.4f}")
 """
-    #Set decision tree depth to 7
+    #Train data
+    #Set decision tree depth to 4
     tree= DecisionTreeClassifier(max_depth=4,random_state=42)
     #Train the data
     tree.fit(xTrain,yTrain)
@@ -223,6 +213,7 @@ def DecisionTree_Continuous(xTrain,xTest,yTrain,yTest,accident_freq_df):
     print("Prediction: ",prediction)
     print("Mean Squared Error:", mean_squared_error(yTest, prediction))
     print("R² Score:", r2_score(yTest, prediction))
+    
     #Create table to display prediction
     decoded = accident_freq_df.iloc[xTest.index].copy()
     decoded['Predicted_ACCIDENT_COUNT'] = prediction
@@ -242,6 +233,7 @@ def ConfusionMatrix(xTest,yTest,xTrain,yTrain,prediction,subtitle):
     plt.xlabel('Predicted', x=0.5, y=3,fontsize=11)
     plt.ylabel('Actual', fontsize=11)
     plt.show()
+    #Confusion matrix textual display
     print(cm)
 
 
