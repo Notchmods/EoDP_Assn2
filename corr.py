@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 Research Question:  What are the differences in traffic accident outcomes among various 
 vehicle types under different road and environmental conditions? 
 
-Correlation Analysis: Identify which factors("LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST", "CLEAR") 
-are most associated with severe accidents. 
+Correlation Analysis: Identify which factors("ROAD_SURFACE_TYPE_DESC", "SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", 
+"FOG/SMOKE/DUST") are most associated with severe accidents. 
 """
 
 v_path = "vehicle.csv"
@@ -70,13 +70,10 @@ def heatmap(df, dependent, independent, filename):
     return
 
 
-ailMI = mutual_info(everything, ["SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST"], "AVERAGE_INJ_LEVEL")
-vdlMI = mutual_info(everything, ["SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST"], "VEHICLE_DAMAGE_LEVEL")
+ailMI = mutual_info(everything, ["ROAD_SURFACE_TYPE_DESC", "SPEED_ZONE", "LIGHT_LEVEL", "ROAD_TYPE", "RAIN/SNOW", "FOG/SMOKE/DUST"], 
+                    "AVERAGE_INJ_LEVEL")
 make_barGraph(ailMI,'AVERAGE_INJ_LEVEL', 'AILMutInfo.png')
-make_barGraph(vdlMI, 'VEHICLE_DMG_LEVEL', 'VDLMutInfo.png')
 
 heatmap(everything, "SPEED_ZONE", "AVERAGE_INJ_LEVEL", 'speedAILheatmap.png')
-heatmap(everything, "ROAD_TYPE", "AVERAGE_INJ_LEVEL", 'roadAILheatmap.png')
-heatmap(everything, "SPEED_ZONE", "VEHICLE_DAMAGE_LEVEL", 'speedVDLheatmap.png')
-heatmap(everything, "ROAD_TYPE", "VEHICLE_DAMAGE_LEVEL", 'roadVDLheatmap.png')
+heatmap(everything, "LIGHT_LEVEL", "AVERAGE_INJ_LEVEL", 'lightAILheatmap.png')
 
