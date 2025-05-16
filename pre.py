@@ -1,65 +1,7 @@
-"""
-Read it before you start your part:
-
-Question: What are the differences in traffic accident outcomes among various vehicle types 
-          under different road and environmental conditions?
-
-- Please download data from https://discover.data.vic.gov.au/dataset/victoria-road-crash-data
-  In this assignment, we are currently using these data file: 
-    Accident, 
-    Vehicle, 
-    Atmospheric Condition, 
-    Person
-  If you reckon any other files could be included, pls discuss with all group members.
-
-- For accident environments:
-    We mainly focus on the following factor:
-        - road geometry
-        - light level
-        - road surface
-        - Atmospheric Condition
-
-- For accident outcome:
-    We mainly focus on the following factor:
-        - vehicle damage level
-        - number of people (driver or passenger) injured from the accident
-            Notes: There are counts for diffrent level of injury. 
-        - average injury level across driver and all passengers
-
-Some Questions I'm not sure:
-- number of people (driver or passenger) injured VS. average injury level
-    There two are basically same things. I think you only need to use one of them to reflect the 
-    safety of the car under a certain condition. Considering which one to use, I think just choose
-    the one better/easier for your task. The reason I kept both is just providing your another 
-    option (hopefully is helpful to you)
-
-- How should we measure the outcome of an accident?
-    Just my opinion, we could analyze how structurally vulnerable or robust the vehicle is (i.e., how 
-    easily it gets damaged or the structural integrity). Another use of damage level could be a 
-    factor to reflect the servity of the accidents. I think the correlation between damage level and 
-    injury under different condition could tell us something.
-
-- Frequency:
-    I didn't do anything with the frequency counts (sorry for that). It should be very easy. I think 
-    it's better to have that as well. It could answer some questions like "Which type of vehicle is 
-    more dangerous when there is no light?"
-
-A few possible problems we could solve:
-- How does road geometry influence accident severity across different vehicle types?
-- Do different light conditions (e.g., day, night, dusk) impact injury severity differently across vehicle types?
-- Which vehicle types are more prone to severe outcomes on poor road surfaces (e.g., gravel, unpaved)?
-- Under adverse weather (e.g., heavy rain, fog), which vehicle types experience the highest increase in fatality rate?
-- Are rear-seat passengers more vulnerable in certain vehicle types (e.g., Light Commercial vs. Passenger Cars)?
-- Are some vehicle types consistently more dangerous for front-seat passengers?
-- Does higher vehicle damage always correlate with higher injury levels? Does this vary by vehicle type?
-- Are there vehicles with high structural damage but surprisingly low passenger injuries—or the opposite?
-- Are there specific combinations of conditions (e.g., night + wet road + motorcycle) that result in extreme injury outcomes?
-- Are some vehicle types generally safer regardless of road and environmental conditions?
-- Does the number of occupants in a vehicle influence the injury outcome? For example, are rear-seat injuries worse when more people are seated?
-"""
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
 import re
+import numpy as np
 
 reordered_INJ_dict = {
     1: 3,
@@ -75,24 +17,11 @@ inj_name_dict = {
     0: "NO_INJ_COUNT",
 }
 
-
-level_of_damage_dict = {
-    1: "Minor",
-    2: "Moderate (driveable vehicle)",
-    3: "Moderate (unit towed away)",
-    4: "Major (unit towed away)",
-    5: "Extensive (unrepairable)",
-    6: "No damage"
-}
-
-front = ["LF", "CF", "PL", "D"]
-UK_position = ["NA", "NK"]
-
 unknown_type = ["Unknown", "Not Applicable", "Not Known"]
 
 Unwanted_type = ["Electric Device", "Horse (ridden or drawn)",
                   "Plant machinery and Agricultural equipment",
-                  "Parked trailers", "Other Vehicle"]
+                  "Parked trailers", "Other Vehicle", "Tram", "Train"]
 
 model_to_type = {}
 body_to_type = {}
@@ -353,6 +282,34 @@ def resolve_unknown_type(row, df):
 
     return v_type
 
+def resolve_missing_attribute(df, target_col):
+    avg_dict = {}
+
+    missing_categories = df[df[target_col].isna()]["VEHICLE_TYPE_DESC"].unique()
+    for cat in missing_categories:
+        if cat not in avg_dict:
+            mean_value = df[df["VEHICLE_TYPE_DESC"] == cat][target_col].mean()
+            if pd.notna(mean_value):
+                avg_dict[cat] = int(mean_value)
+
+    def fill_func(row):
+        if pd.isna(row[target_col]) and row["VEHICLE_TYPE_DESC"] in avg_dict:
+            return avg_dict[row["VEHICLE_TYPE_DESC"]]
+        return int(row[target_col])
+
+    df[target_col] = df.apply(fill_func, axis=1)
+    return df
+
+def replace_outliers(df):
+    Q1 = df["TARE_WEIGHT"].quantile(0.25)
+    Q3 = df["TARE_WEIGHT"].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+
+    df.loc[(df["TARE_WEIGHT"] < lower) | (df["TARE_WEIGHT"] > upper), "TARE_WEIGHT"] = np.nan
+    return df
+
 def vehicle_df(vehicle_path):
     """
     Notes: Don't use the output dataframe from this function. Use the outcome one.
@@ -373,24 +330,24 @@ def vehicle_df(vehicle_path):
                    'Prime Mover - Single Trailer', 'Prime Mover (No of Trailers Unknown)', 
                    'Parked trailers', 'Heavy Vehicle (Rigid) > 4.5 Tonnes', 'Rigid Truck(Weight Unknown)']
         8. 'Bicycle'
-    
-    - VEHICLE_DAMAGE_LEVEL: Indicates the level of damage to the vehicle.
-        Contained value types (after mapping):
-            0: "No damage",
-            1: "Minor",
-            2: "Moderate (driveable vehicle)",
-            3: "Moderate (unit towed away)",
-            4: "Major (unit towed away)",
-            5: "Extensive (unrepairable)"
     """
-    vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "VEHICLE_MODEL", "VEHICLE_BODY_STYLE", "VEHICLE_TYPE_DESC", "LEVEL_OF_DAMAGE"])
+    vehicle = pd.read_csv(vehicle_path, usecols=["ACCIDENT_NO", "VEHICLE_ID", "VEHICLE_MODEL", "VEHICLE_BODY_STYLE", "VEHICLE_TYPE_DESC",  "NO_OF_WHEELS", "NO_OF_CYLINDERS", "SEATING_CAPACITY", "TARE_WEIGHT", "TOTAL_NO_OCCUPANTS"])
     # For viewing what each column is
-    vehicle = vehicle[(~vehicle["VEHICLE_TYPE_DESC"].isin(Unwanted_type)) & (vehicle["LEVEL_OF_DAMAGE"] != 9)]
+    vehicle = vehicle[(~vehicle["VEHICLE_TYPE_DESC"].isin(Unwanted_type))]
+    # Fill in missing attribute for vehicle
+    vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "NO_OF_WHEELS"] = 2
+    vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "NO_OF_CYLINDERS"] = 0
+    vehicle.loc[vehicle["VEHICLE_TYPE_DESC"] == "Bicycle", "SEATING_CAPACITY"] = 1
+    vehicle["TARE_WEIGHT"] = vehicle["TARE_WEIGHT"].replace(0, np.nan)
+    vehicle = vehicle.groupby("VEHICLE_TYPE_DESC", group_keys=False).apply(replace_outliers)
+    resolve_missing_attribute(vehicle, "NO_OF_WHEELS")
+    resolve_missing_attribute(vehicle, "NO_OF_CYLINDERS")
+    resolve_missing_attribute(vehicle, "SEATING_CAPACITY")
+    resolve_missing_attribute(vehicle, "TARE_WEIGHT")
+    resolve_missing_attribute(vehicle, "TOTAL_NO_OCCUPANTS")
     # Predict unknown type as much as we can
     vehicle["VEHICLE_TYPE_DESC"] = vehicle.apply(lambda row: resolve_unknown_type(row, vehicle), axis=1)
     vehicle = vehicle[~vehicle["VEHICLE_TYPE_DESC"].isin(unknown_type)]
-    vehicle = vehicle.rename(columns={"LEVEL_OF_DAMAGE": "VEHICLE_DAMAGE_LEVEL"})
-    vehicle["VEHICLE_DAMAGE_LEVEL"] = vehicle["VEHICLE_DAMAGE_LEVEL"].replace(6, 0)
     # After predicting we can delete the columns only use for prediction
     vehicle.drop(columns=["VEHICLE_MODEL","VEHICLE_BODY_STYLE"], inplace=True)
 
@@ -406,7 +363,7 @@ def vehicle_df(vehicle_path):
 def outcome_df(vehicle_path, person_path, accident_path):
     """
     This function merges and processes accident outcome data to produce a DataFrame 
-    that combines vehicle damage and injury severity information. It removes incomplete 
+    that combines injury severity information. It removes incomplete 
     or irrelevant data and computes injury severity statistics.
 
     The resulting DataFrame includes the following columns:
@@ -414,15 +371,6 @@ def outcome_df(vehicle_path, person_path, accident_path):
         - ACCIDENT_NO
 
         - VEHICLE_ID
-        
-        - VEHICLE_DAMAGE_LEVEL: Indicates the level of damage to the vehicle.
-        Contained value types (after mapping):
-            0: "No damage",
-            1: "Minor",
-            2: "Moderate (driveable vehicle)",
-            3: "Moderate (unit towed away)",
-            4: "Major (unit towed away)",
-            5: "Extensive (unrepairable)"
 
         - VEHICLE_CATEGORY:
             1. 'Car'
@@ -493,7 +441,7 @@ def everything_df(vehicle_path, accident_path, atomosphere_path, person_path):
     # make sure you merge in this way if you merged by your self, not pd.merge(environment, outcome, ...)
     everything = pd.merge(outcome, environment, on=["ACCIDENT_NO"])
     # For viewing
-    everything.to_csv("table.csv", index=False)
+    everything.to_csv("table_c.csv", index=False)
     return everything
 
 # For testing:
